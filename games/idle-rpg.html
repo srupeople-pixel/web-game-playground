@@ -157,12 +157,11 @@
   .stat-card-value{font-size:16px;font-weight:800;color:#6c8cff;white-space:nowrap;}
   .stat-card-breakdown{font-size:10.5px;color:#9aa0c0;margin-top:5px;line-height:1.6;}
 
-  /* 오른쪽 스킬 현황 패널 (창 넓을 때만 표시) */
+  /* 오른쪽 스킬 현황 패널 (넓은 화면: 오른쪽 고정 / 좁은 화면: 아래로 이어붙임) */
   .page-layout{display:flex;gap:20px;align-items:flex-start;justify-content:center;width:100%;}
   .side-panel{flex:0 0 260px;display:flex;flex-direction:column;gap:10px;position:sticky;top:16px;
     max-height:calc(100vh - 32px);overflow-y:auto;}
   #sidePanelSkills{display:flex;flex-direction:column;gap:10px;}
-  .side-panel .stat-sheet{grid-template-columns:1fr;}
   .side-panel-label{font-size:13px;font-weight:700;color:#9aa0c0;}
   .side-skill-card{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:11px 13px;cursor:pointer;transition:.15s;}
   .side-skill-card:hover{border-color:#6c8cff;}
@@ -171,7 +170,11 @@
   .side-skill-sub{font-size:11px;color:#9aa0c0;margin-top:4px;line-height:1.5;}
   .side-skill-bar-wrap{height:6px;background:#0d0f1a;border-radius:4px;overflow:hidden;margin-top:6px;border:1px solid #2a3050;}
   .side-skill-bar{height:100%;background:linear-gradient(90deg,#5ad46a,#8ef29a);}
-  @media (max-width:1080px){ .side-panel{display:none;} }
+  @media (min-width:1081px){ .side-panel .stat-sheet{grid-template-columns:1fr;} }
+  @media (max-width:1080px){
+    .page-layout{flex-direction:column;}
+    .side-panel{flex:none;width:100%;position:static;max-height:none;overflow-y:visible;}
+  }
 </style></head>
 <body>
 <h1>⚔️ 방치형 RPG</h1>
