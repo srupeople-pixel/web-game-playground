@@ -69,6 +69,12 @@
   .stage-badge{position:absolute;top:10px;left:14px;font-size:12px;background:#0d0f1a;border:1px solid #2a3050;
     padding:4px 10px;border-radius:8px;color:#9aa0c0;}
 
+  .combat-control{display:flex;justify-content:center;}
+  .combat-toggle-btn{background:linear-gradient(135deg,#6c8cff,#b06cff);border:none;color:#fff;font-weight:700;
+    font-size:14px;padding:12px 32px;border-radius:12px;cursor:pointer;transition:.15s;}
+  .combat-toggle-btn:hover{filter:brightness(1.1);}
+  .combat-toggle-btn.stop{background:#1c2138;border:1px solid #ff6b8b;color:#ff6b8b;}
+
   /* 스킬 패널 */
   .skill-panel{background:#161a2c;border:1px solid #2a3050;border-radius:14px;padding:22px;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:10px;}
@@ -214,6 +220,10 @@
             <div class="fighter-name" id="enemyName">-</div>
             <div class="bar-wrap fighter-hpbar"><div id="enemyHpBar" class="bar hp" style="width:100%"></div></div>
           </div>
+        </div>
+
+        <div class="combat-control">
+          <button id="combatToggleBtn" class="combat-toggle-btn">⚔️ 전투 시작</button>
         </div>
 
         <div class="potion-bar" id="potionBar"></div>
@@ -616,14 +626,15 @@ let S = {
   equipment:{weapon:null, armor:null, accessory:null},
   ownedGear:{},
   activeMode:'combat',
+  combatActive:false,
   selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
   skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
   inventory:{},
 };
 const PRESTIGE_UPG_DEF = [
   {key:'power', icon:'💪', title:'초심자의 힘', desc:'시작 공격력 +1, 시작 체력 +1 영구 증가'},
-  {key:'wealth', icon:'💰', title:'축복받은 지갑', desc:'골드 획득량 영구 +1.5%'},
-  {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +1.5%'},
+  {key:'wealth', icon:'💰', title:'축복받은 지갑', desc:'골드 획득량 영구 +0.5%'},
+  {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +0.5%'},
   {key:'vitality', icon:'❤️', title:'불굴의 심장', desc:'최대체력 영구 +2%'},
   {key:'headstart', icon:'🌱', title:'새출발 자금', desc:'환생할 때마다 시작 골드 +40'},
 ];
@@ -721,7 +732,7 @@ function deriveStats(){
   S.maxHp = Math.round((S.baseHp + S.upLvl.hp*12 + S.level*2 + p.power*1 + equipBonus('hp')) * (1+p.vitality*0.02));
   S.atk = Math.round((S.baseAtk + S.upLvl.atk*2 + p.power*1 + equipBonus('atk')) * (1+S.level*0.06));
   S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
-  S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.015) * (1 + equipBonus('goldPct')/100);
+  S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.005) * (1 + equipBonus('goldPct')/100);
 }
 function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
 function upgradeCost(key, lvl){
@@ -797,7 +808,7 @@ function renderStatSheet(){
   if(!el) return;
   const p = S.prestige.upLvl;
   const goldPct = Math.round((S.goldMult-1)*100);
-  const xpPct = Math.round((p.wisdom*0.015 + equipBonus('xpPct')/100)*100);
+  const xpPct = Math.round((p.wisdom*0.005 + equipBonus('xpPct')/100)*100);
   const cards = [
     {icon:'⚔️', name:'공격력', value:S.atk, lines:[
       `기본 ${S.baseAtk}`, `강화 +${S.upLvl.atk*2}`, `환생 +${p.power*1}`, `장비 +${equipBonus('atk')}`, `레벨보정 ×${(1+S.level*0.06).toFixed(2)}`]},
@@ -806,9 +817,9 @@ function renderStatSheet(){
     {icon:'⚡', name:'공격속도', value:S.spd.toFixed(2)+'/초', lines:[
       `기본 ${S.baseSpd.toFixed(2)}`, `강화 +${(S.upLvl.spd*0.12).toFixed(2)}`]},
     {icon:'💰', name:'골드 획득량', value:'+'+goldPct+'%', lines:[
-      `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${(p.wealth*1.5).toFixed(1)}%`, `장비 +${equipBonus('goldPct')}%`]},
+      `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${(p.wealth*0.5).toFixed(1)}%`, `장비 +${equipBonus('goldPct')}%`]},
     {icon:'✨', name:'경험치 획득량', value:'+'+xpPct+'%', lines:[
-      `환생 +${(p.wisdom*1.5).toFixed(1)}%`, `장비 +${equipBonus('xpPct')}%`]},
+      `환생 +${(p.wisdom*0.5).toFixed(1)}%`, `장비 +${equipBonus('xpPct')}%`]},
     {icon:'🎯', name:'채집 크리티컬', value:'', lines:[
       `🪓벌목 ${Math.round(GATHER_SKILLS.woodcutting.critChance*100)}%`,
       `🎣낚시 ${Math.round(GATHER_SKILLS.fishing.critChance*100)}%`,
@@ -860,7 +871,7 @@ function renderSidePanel(){
 }
 
 function gainXp(amount){
-  const mult = 1 + S.prestige.upLvl.wisdom*0.015 + equipBonus('xpPct')/100;
+  const mult = 1 + S.prestige.upLvl.wisdom*0.005 + equipBonus('xpPct')/100;
   S.xp += Math.round(amount * mult);
   let need = xpToNext(S.level);
   while(S.xp >= need){
@@ -958,6 +969,7 @@ function restartGame(){
       equipment:{weapon:null, armor:null, accessory:null},
       ownedGear:{},
       activeMode:'combat',
+      combatActive:false,
       selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
       skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
       inventory:{},
@@ -1085,6 +1097,20 @@ function renderSkillPanel(){
   const panel = document.getElementById('skillPanel');
   if(S.activeMode==='combat'){ panel.innerHTML=''; return; }
   renderGatherPanel(S.activeMode);
+}
+
+/* ========================= 전투 시작/중지 ========================= */
+function toggleCombat(){
+  S.combatActive = !S.combatActive;
+  if(S.combatActive) lastCombatTick = Date.now(); // 재개 시 밀린 시간이 한꺼번에 처리되지 않도록
+  renderCombatToggle();
+  save();
+}
+function renderCombatToggle(){
+  const btn = document.getElementById('combatToggleBtn');
+  if(!btn) return;
+  btn.textContent = S.combatActive ? '⏸ 전투 중지' : '⚔️ 전투 시작';
+  btn.className = 'combat-toggle-btn' + (S.combatActive ? ' stop' : '');
 }
 
 /* ========================= 사냥터 렌더 ========================= */
@@ -1462,6 +1488,7 @@ function load(){
 }
 function offlineRewards(){
   if(S.gameOver) return;
+  if(S.activeMode!=='combat' || !S.combatActive) return; // 전투가 켜져있지 않았다면 방치 보상 없음
   const elapsedMs = Math.min(Date.now()-S.lastSave, 4*3600*1000);
   const seconds = elapsedMs/1000;
   if(seconds < 30) return;
@@ -1495,7 +1522,7 @@ function combatTick(){
   const now = Date.now();
   const dt = now-lastCombatTick; lastCombatTick = now;
   if(S.gameOver) return;
-  if(S.activeMode==='combat'){
+  if(S.activeMode==='combat' && S.combatActive){
     heroCd -= dt;
     if(enemy){ enemy.atkCd -= dt; }
     if(heroCd<=0 && enemy){ playerAttack(); heroCd = 1000/S.spd; }
@@ -1519,6 +1546,7 @@ function drawLoop(now){
 function renderAll(){
   renderStats(); renderModeTabs(); renderZones(); renderShop(); renderPotionShop(); renderPotionBar();
   renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory();
+  renderCombatToggle();
   document.getElementById('combatSection').hidden = S.activeMode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[S.activeMode];
   document.getElementById('smithingSection').hidden = S.activeMode!=='smithing';
@@ -1553,6 +1581,7 @@ function init(){
     if(S.inventory.ore){ S.inventory.ore_copper = (S.inventory.ore_copper||0)+S.inventory.ore; delete S.inventory.ore; }
   }
   if(!S.activeMode) S.activeMode = 'combat';
+  if(typeof S.combatActive !== 'boolean') S.combatActive = false;
   if(!S.selectedTree) S.selectedTree = 'normal';
   if(!S.selectedFish) S.selectedFish = 'shrimp';
   if(!S.selectedOre) S.selectedOre = 'copper';
@@ -1564,12 +1593,13 @@ function init(){
   renderAll();
   if(S.gameOver) showGameOverOverlay();
   document.getElementById('goRestart').addEventListener('click', restartGame);
+  document.getElementById('combatToggleBtn').addEventListener('click', toggleCombat);
   requestAnimationFrame(drawLoop);
   setInterval(combatTick, 100);
   setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); if(S.activeMode!=='combat') renderSkillPanel(); }, 1000);
   setInterval(save, 5000);
   window.addEventListener('beforeunload', save);
-  if(!hadSave) log('게임을 시작합니다. 자동으로 전투가 진행돼요.');
+  if(!hadSave) log('게임을 시작합니다. "⚔️ 전투 시작" 버튼을 눌러 전투를 시작하세요.');
 }
 init();
 </script>
