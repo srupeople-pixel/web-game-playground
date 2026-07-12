@@ -34,6 +34,8 @@
     cursor:pointer;font-size:13px;font-weight:700;transition:.15s;line-height:1.4;}
   .mode-tab:hover{border-color:#6c8cff;}
   .mode-tab.active{background:linear-gradient(135deg,#6c8cff,#b06cff);border-color:transparent;color:#fff;}
+  .mode-tab.running:not(.active){border-color:#5ad46a;}
+  .running-dot{color:#5ad46a;font-size:8px;animation:pulseLow 1s infinite alternate;}
   @media (max-width:520px){
     .mode-layout{flex-direction:column;}
     .mode-sidebar{flex-direction:row;flex:none;width:100%;position:static;}
@@ -635,6 +637,7 @@ let S = {
   ownedGear:{},
   activeMode:'combat',
   combatActive:false,
+  gatherActive:{woodcutting:false, fishing:false, mining:false},
   selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
   critPotionLvl:{woodcutting:0, fishing:0, mining:0},
   skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
@@ -986,12 +989,13 @@ function restartGame(){
       ownedGear:{},
       activeMode:'combat',
       combatActive:false,
+      gatherActive:{woodcutting:false, fishing:false, mining:false},
       selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
       critPotionLvl:{woodcutting:0, fishing:0, mining:0},
       skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
       inventory:{},
     };
-    heroCd = 0; lastCombatTick = Date.now(); skillCd = 0;
+    heroCd = 0; lastCombatTick = Date.now(); skillCd = {woodcutting:0, fishing:0, mining:0};
     deriveStats(); S.hp = S.maxHp;
     document.getElementById('gameOverOverlay').hidden = true;
     document.getElementById('log').innerHTML = '';
@@ -1015,8 +1019,8 @@ const MODES = [
   {key:'alchemy', name:'연금술', icon:'⚗️'},
 ];
 function setMode(mode){
+  // 화면 전환만 할 뿐, 전투/채집은 각자의 시작 버튼으로 독립적으로 계속 진행됩니다.
   S.activeMode = mode;
-  skillCd = 0;
   document.getElementById('combatSection').hidden = mode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[mode];
   document.getElementById('smithingSection').hidden = mode!=='smithing';
@@ -1028,13 +1032,19 @@ function setMode(mode){
   renderSidePanel();
   save();
 }
+function isModeRunning(key){
+  if(key==='combat') return S.combatActive;
+  if(GATHER_SKILLS[key]) return !!S.gatherActive[key];
+  return false;
+}
 function renderModeTabs(){
   const wrap = document.getElementById('modeTabs');
   wrap.innerHTML = '';
   MODES.forEach(m=>{
     const el = document.createElement('div');
-    el.className = 'mode-tab'+(S.activeMode===m.key?' active':'');
-    el.textContent = m.icon+' '+m.name;
+    const running = isModeRunning(m.key);
+    el.className = 'mode-tab'+(S.activeMode===m.key?' active':'')+(running?' running':'');
+    el.innerHTML = m.icon+' '+m.name+(running?' <span class="running-dot">●</span>':'');
     el.onclick = ()=>setMode(m.key);
     wrap.appendChild(el);
   });
@@ -1085,8 +1095,15 @@ function doGatherAction(skillKey){
   }
   const cv = document.getElementById(g.canvasId);
   if(cv){ flash(cv); g.draw(cv.getContext('2d'), item.key, true); }
-  renderSkillPanel(); renderInventory(); renderSidePanel(); save();
-  if(leveledUp) renderSkillPanel();
+  if(S.activeMode===skillKey) renderSkillPanel();
+  renderMaterialInventory(); renderInventory(); renderSidePanel(); save();
+}
+function toggleGather(skillKey){
+  S.gatherActive[skillKey] = !S.gatherActive[skillKey];
+  if(S.gatherActive[skillKey]) skillCd[skillKey] = 0;
+  renderSkillPanel();
+  renderModeTabs();
+  save();
 }
 function renderGatherPanel(skillKey){
   const g = GATHER_SKILLS[skillKey];
@@ -1094,11 +1111,12 @@ function renderGatherPanel(skillKey){
   const sk = S.skills[skillKey];
   const item = currentGatherItem(skillKey);
   const need = skillXpToNext(sk.level);
-  const pct = Math.max(0, Math.min(100, 100 - (skillCd/item.actionMs*100)));
+  const active = !!S.gatherActive[skillKey];
+  const pct = active ? Math.max(0, Math.min(100, 100 - (skillCd[skillKey]/item.actionMs*100))) : 0;
   const cards = g.catalog.map(t=>{
     const locked = sk.level < t.level;
-    const active = S[g.selectedKey]===t.key;
-    return `<div class="zone-card"${locked?' style="opacity:.4;cursor:not-allowed;"':''}${active?' style="border-color:#5ad46a;background:#16241c;"':''}
+    const selected = S[g.selectedKey]===t.key;
+    return `<div class="zone-card"${locked?' style="opacity:.4;cursor:not-allowed;"':''}${selected?' style="border-color:#5ad46a;background:#16241c;"':''}
       data-gather="${t.key}">
       <div class="zone-title">${t.icon} ${t.name}</div>
       <div class="zone-desc">${locked? '🔒 Lv.'+t.level+' 필요' : '💰'+t.sellPrice+' · xp'+t.xp}</div>
@@ -1110,7 +1128,9 @@ function renderGatherPanel(skillKey){
     <div class="skill-sub">보유 ${item.itemName} ${S.inventory[item.itemKey]||0}개 · 경험치 ${sk.xp}/${need}</div>
     <div class="skill-progress-wrap"><div class="skill-progress" style="width:${pct}%"></div></div>
     <div class="skill-sub">크리티컬 확률 ${Math.round(effectiveCritChance(skillKey)*100)}% · ${g.rareLabel} 확률 ${Math.round(g.rareChance*100)}%</div>
+    <div class="combat-control"><button id="gatherToggleBtn" class="combat-toggle-btn${active?' stop':''}">${active?'⏸ 채집 중지':'▶ 채집 시작'}</button></div>
     <div class="zone-list" style="width:100%;margin-top:6px;">${cards}</div>`;
+  document.getElementById('gatherToggleBtn').onclick = ()=>toggleGather(skillKey);
   panel.querySelectorAll('[data-gather]').forEach(el=>{
     el.style.cursor = 'pointer';
     el.onclick = ()=>selectGatherItem(skillKey, el.dataset.gather);
@@ -1591,24 +1611,50 @@ function load(){
 }
 function offlineRewards(){
   if(S.gameOver) return;
-  if(S.activeMode!=='combat' || !S.combatActive) return; // 전투가 켜져있지 않았다면 방치 보상 없음
   const elapsedMs = Math.min(Date.now()-S.lastSave, 4*3600*1000);
   const seconds = elapsedMs/1000;
   if(seconds < 30) return;
   deriveStats();
-  const stage = effectiveStage(S.currentZone);
-  const avgEnemyHp = 15*Math.pow(1.16, stage-1)*1.3;
-  const dps = S.atk*S.spd;
-  const killsPerSec = dps / Math.max(avgEnemyHp,1) * 0.5;
-  const goldPerKill = 2*Math.pow(1.16, stage-1)*S.goldMult;
-  const xpPerKill = 1.5*Math.pow(1.16, stage-1);
-  const kills = killsPerSec*seconds;
-  const gained = Math.round(kills*goldPerKill);
-  const xpGained = Math.round(kills*xpPerKill);
-  S.gold += gained;
-  gainXp(xpGained);
+
+  let msg = '';
   const mins = Math.floor(seconds/60);
-  showToast(`🕒 오프라인 ${mins}분 동안<br><b>💰 ${gained.toLocaleString()}골드</b> · <b>${xpGained}xp</b> 획득!`);
+
+  // 전투 (켜져 있었을 때만)
+  if(S.combatActive){
+    const stage = effectiveStage(S.currentZone);
+    const avgEnemyHp = 15*Math.pow(1.16, stage-1)*1.3;
+    const dps = S.atk*S.spd;
+    const killsPerSec = dps / Math.max(avgEnemyHp,1) * 0.5;
+    const goldPerKill = 2*Math.pow(1.16, stage-1)*S.goldMult;
+    const xpPerKill = 1.5*Math.pow(1.16, stage-1);
+    const kills = killsPerSec*seconds;
+    const gained = Math.round(kills*goldPerKill);
+    const xpGained = Math.round(kills*xpPerKill);
+    S.gold += gained;
+    gainXp(xpGained);
+    msg += `<b>💰 ${gained.toLocaleString()}골드</b> · <b>${xpGained}xp</b> 획득!<br>`;
+  }
+
+  // 채집 스킬 (켜져 있던 것만 각자 독립적으로 진행)
+  Object.keys(GATHER_SKILLS).forEach(skillKey=>{
+    if(!S.gatherActive[skillKey]) return;
+    const g = GATHER_SKILLS[skillKey];
+    const item = currentGatherItem(skillKey);
+    const cycles = Math.floor(elapsedMs / item.actionMs);
+    if(cycles <= 0) return;
+    const crit = effectiveCritChance(skillKey);
+    const avgQtyPerCycle = 1*(1-crit) + 2*crit;
+    const totalQty = Math.round(cycles*avgQtyPerCycle);
+    S.inventory[item.itemKey] = (S.inventory[item.itemKey]||0) + totalQty;
+    const sk = S.skills[skillKey];
+    sk.xp += cycles*item.xp;
+    let need = skillXpToNext(sk.level);
+    while(sk.xp >= need){ sk.xp -= need; sk.level++; need = skillXpToNext(sk.level); }
+    msg += `${g.icon} ${item.icon} ${item.itemName} +${totalQty}<br>`;
+  });
+
+  if(!msg) return;
+  showToast(`🕒 오프라인 ${mins}분 동안<br>${msg}`);
 }
 function showToast(html){
   const t = document.createElement('div');
@@ -1620,20 +1666,28 @@ function showToast(html){
 /* ========================= 메인 루프 =========================
    로직은 setInterval로 돌려 탭이 백그라운드여도 계속 진행됩니다.
    그리기는 requestAnimationFrame으로 분리(탭이 안 보이면 자동 절전, 정상). */
-let heroCd=0, lastCombatTick=Date.now(), animT=0, skillCd=0;
+let heroCd=0, lastCombatTick=Date.now(), animT=0;
+let skillCd = {woodcutting:0, fishing:0, mining:0};
 function combatTick(){
   const now = Date.now();
   const dt = now-lastCombatTick; lastCombatTick = now;
   if(S.gameOver) return;
-  if(S.activeMode==='combat' && S.combatActive){
+
+  // 전투와 채집 3종은 서로 화면 전환과 무관하게 각자 독립적으로 동시에 진행됩니다.
+  if(S.combatActive){
     heroCd -= dt;
     if(enemy){ enemy.atkCd -= dt; }
     if(heroCd<=0 && enemy){ playerAttack(); heroCd = 1000/S.spd; }
     if(enemy && enemy.atkCd<=0){ enemyAttack(); enemy.atkCd = 2000 + Math.random()*700; }
-  } else if(GATHER_SKILLS[S.activeMode]){
-    skillCd -= dt;
-    if(skillCd<=0){ doGatherAction(S.activeMode); skillCd = currentGatherItem(S.activeMode).actionMs; }
   }
+  Object.keys(GATHER_SKILLS).forEach(skillKey=>{
+    if(!S.gatherActive[skillKey]) return;
+    skillCd[skillKey] -= dt;
+    if(skillCd[skillKey] <= 0){
+      doGatherAction(skillKey);
+      skillCd[skillKey] = currentGatherItem(skillKey).actionMs;
+    }
+  });
 }
 function drawLoop(now){
   animT = now;
@@ -1686,6 +1740,8 @@ function init(){
   }
   if(!S.activeMode) S.activeMode = 'combat';
   if(typeof S.combatActive !== 'boolean') S.combatActive = false;
+  if(!S.gatherActive) S.gatherActive = {woodcutting:false, fishing:false, mining:false};
+  else ['woodcutting','fishing','mining'].forEach(k=>{ if(typeof S.gatherActive[k]!=='boolean') S.gatherActive[k]=false; });
   if(!S.selectedTree) S.selectedTree = 'normal';
   if(!S.selectedFish) S.selectedFish = 'shrimp';
   if(!S.selectedOre) S.selectedOre = 'copper';
@@ -1702,7 +1758,7 @@ function init(){
   document.getElementById('combatToggleBtn').addEventListener('click', toggleCombat);
   requestAnimationFrame(drawLoop);
   setInterval(combatTick, 100);
-  setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); if(S.activeMode!=='combat') renderSkillPanel(); }, 1000);
+  setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); renderModeTabs(); if(GATHER_SKILLS[S.activeMode]) renderSkillPanel(); }, 1000);
   setInterval(save, 5000);
   window.addEventListener('beforeunload', save);
   if(!hadSave) log('게임을 시작합니다. "⚔️ 전투 시작" 버튼을 눌러 전투를 시작하세요.');
