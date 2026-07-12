@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <title>플레이랩 · 웹게임 놀이터</title>
+  <link rel="stylesheet" href="css/style.css?v=4" />
+</head>
+<body>
+  <!-- 상단 헤더 -->
+  <header class="topbar">
+    <div class="brand" data-nav="play">
+      <span class="brand-logo">🎮</span>
+      <span class="brand-name">플레이<b>랩</b></span>
+    </div>
+    <nav class="tabs">
+      <button class="tab is-active" data-nav="play">🕹️ 게임 즐기기</button>
+      <button class="tab" data-nav="create">🛠️ 게임 만들기</button>
+      <button class="tab" data-nav="mine">📁 내 게임</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============ 게임 즐기기 ============ -->
+    <section id="view-play" class="view is-active">
+      <div class="hero">
+        <h1>웹게임 놀이터</h1>
+        <p>바로 즐기고, 직접 만들고, 세상에 하나뿐인 게임을 실행하세요.</p>
+      </div>
+      <div class="section-head">
+        <h2>🎯 내장 게임</h2>
+        <input id="search" class="search" type="search" placeholder="게임 검색…" />
+      </div>
+      <div id="builtin-grid" class="game-grid"></div>
+    </section>
+
+    <!-- ============ 게임 만들기 ============ -->
+    <section id="view-create" class="view">
+      <div class="editor-head">
+        <input id="game-title" class="title-input" placeholder="게임 이름을 입력하세요" value="나의 첫 게임" />
+        <div class="editor-actions">
+          <button id="btn-run" class="btn btn-ghost">▶ 실행</button>
+          <button id="btn-reset" class="btn btn-ghost">↺ 예제 불러오기</button>
+          <button id="btn-save" class="btn btn-primary">💾 저장</button>
+        </div>
+      </div>
+      <div class="editor-layout">
+        <div class="code-panes">
+          <div class="pane">
+            <div class="pane-label">HTML</div>
+            <textarea id="code-html" class="code" spellcheck="false"></textarea>
+          </div>
+          <div class="pane">
+            <div class="pane-label">CSS</div>
+            <textarea id="code-css" class="code" spellcheck="false"></textarea>
+          </div>
+          <div class="pane">
+            <div class="pane-label">JavaScript</div>
+            <textarea id="code-js" class="code" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="preview-wrap">
+          <div class="pane-label">미리보기</div>
+          <iframe id="preview" class="preview" title="미리보기" sandbox="allow-scripts allow-pointer-lock allow-same-origin"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 내 게임 ============ -->
+    <section id="view-mine" class="view">
+      <div class="section-head">
+        <h2>📁 내가 만든 게임</h2>
+        <span id="mine-count" class="muted"></span>
+      </div>
+      <div id="mine-grid" class="game-grid"></div>
+      <div id="mine-empty" class="empty" hidden>
+        <p>아직 만든 게임이 없어요.</p>
+        <button class="btn btn-primary" data-nav="create">첫 게임 만들러 가기 →</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ 게임 실행 모달 ============ -->
+  <div id="player" class="player" hidden>
+    <div class="player-bar">
+      <span id="player-title" class="player-title"></span>
+      <div class="player-btns">
+        <button id="player-restart" class="btn btn-ghost btn-sm">↻ 다시</button>
+        <button id="player-close" class="btn btn-ghost btn-sm">✕ 닫기</button>
+      </div>
+    </div>
+    <iframe id="player-frame" class="player-frame" title="게임 실행" sandbox="allow-scripts allow-pointer-lock allow-same-origin"></iframe>
+  </div>
+
+  <script src="js/games.js?v=4"></script>
+  <script src="js/creator.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
+</body>
+</html>

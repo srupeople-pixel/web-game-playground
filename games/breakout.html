@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>벽돌깨기</title>
+<style>
+  html,body{margin:0;height:100%;background:#0f1220;color:#e8eaf5;font-family:system-ui,"Malgun Gothic",sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;user-select:none;}
+  #hud{font-size:18px;font-weight:700;display:flex;gap:24px;}
+  canvas{background:#161a2c;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+  .hint{color:#9aa0c0;font-size:13px;}
+  #msg{position:absolute;background:rgba(15,18,32,.9);padding:20px 30px;border-radius:12px;border:1px solid #2a3050;
+    text-align:center;font-size:18px;}
+</style></head><body>
+<div id="hud"><span>점수: <span id="score">0</span></span><span>목숨: <span id="lives">3</span></span></div>
+<canvas id="c" width="480" height="360"></canvas>
+<div class="hint">마우스 또는 ← → 로 패들 조작 · 스페이스로 시작</div>
+<div id="msg">스페이스바를 눌러 시작</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const PW=80,PH=12,BR=7,COLS=8,ROWS=4,BW=52,BH=18,GAP=6,OX=8,OY=30;
+let px,ball,bricks,score,lives,running,left,right;
+function reset(){px=(cv.width-PW)/2;resetBall();bricks=[];score=0;lives=3;running=false;left=right=false;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)bricks.push({x:OX+c*(BW+GAP),y:OY+r*(BH+GAP),alive:true,
+    color:['#6c8cff','#8a7cff','#b06cff','#ff6b8b'][r]});
+  upd();draw();}
+function resetBall(){ball={x:cv.width/2,y:cv.height-40,dx:2.4*(Math.random()<.5?1:-1),dy:-2.6};}
+function upd(){document.getElementById('score').textContent=score;document.getElementById('lives').textContent=lives;}
+function loop(){if(running){step();draw();}requestAnimationFrame(loop);}
+function step(){if(left)px-=6;if(right)px+=6;px=Math.max(0,Math.min(cv.width-PW,px));
+  ball.x+=ball.dx;ball.y+=ball.dy;
+  if(ball.x<BR||ball.x>cv.width-BR)ball.dx*=-1;
+  if(ball.y<BR)ball.dy*=-1;
+  if(ball.y>cv.height-BR-PH-4&&ball.x>px&&ball.x<px+PW&&ball.dy>0){
+    ball.dy*=-1;ball.dx=((ball.x-(px+PW/2))/(PW/2))*3.2;}
+  if(ball.y>cv.height){lives--;upd();if(lives<=0)return over('게임 오버! 점수 '+score);resetBall();running=false;showMsg('스페이스바로 재시작');}
+  bricks.forEach(b=>{if(b.alive&&ball.x>b.x&&ball.x<b.x+BW&&ball.y>b.y&&ball.y<b.y+BH){
+    b.alive=false;ball.dy*=-1;score+=10;upd();
+    if(bricks.every(x=>!x.alive))over('🎉 클리어! 점수 '+score);}});}
+function draw(){ctx.clearRect(0,0,cv.width,cv.height);
+  bricks.forEach(b=>{if(b.alive){ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,BW,BH);}});
+  ctx.fillStyle='#e8eaf5';ctx.fillRect(px,cv.height-PH-4,PW,PH);
+  ctx.fillStyle='#ffd76b';ctx.beginPath();ctx.arc(ball.x,ball.y,BR,0,7);ctx.fill();}
+function showMsg(t){const m=document.getElementById('msg');m.textContent=t;m.style.display='block';}
+function over(t){running=false;showMsg(t+' — 스페이스로 다시');setTimeout(()=>{reset();},50);}
+cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();px=e.clientX-r.left-PW/2;
+  px=Math.max(0,Math.min(cv.width-PW,px));if(!running)draw();});
+document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();if(!running){running=true;document.getElementById('msg').style.display='none';}}
+  if(k==='arrowleft')left=true;if(k==='arrowright')right=true;});
+document.addEventListener('keyup',e=>{const k=e.key.toLowerCase();
+  if(k==='arrowleft')left=false;if(k==='arrowright')right=false;});
+reset();loop();
+</script></body></html>

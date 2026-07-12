@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>방치형 RPG</title>
+<style>
+  * { box-sizing: border-box; }
+  html,body{margin:0;min-height:100%;background:#0d0f1a;color:#e8eaf5;font-family:"Malgun Gothic",system-ui,sans-serif;
+    user-select:none;}
+  body{display:flex;flex-direction:column;align-items:center;padding:16px;gap:14px;}
+  h1{font-size:20px;margin:0;background:linear-gradient(135deg,#6c8cff,#b06cff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:12px;}
+
+  /* 상단 플레이어 상태 */
+  .stat-row{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;background:#161a2c;border:1px solid #2a3050;
+    border-radius:12px;padding:10px 14px;}
+  .stat{display:flex;align-items:center;gap:5px;}
+  .stat b{color:#fff;}
+  .bar-wrap{width:100%;height:14px;background:#0d0f1a;border-radius:7px;overflow:hidden;border:1px solid #2a3050;}
+  .bar{height:100%;transition:width .15s;}
+  .bar.hp{background:linear-gradient(90deg,#ff6b8b,#ff8ca8);}
+  .bar.hp.low{background:linear-gradient(90deg,#ff2d3b,#ff6b6b);animation:pulseLow .6s infinite alternate;}
+  @keyframes pulseLow{from{opacity:1;}to{opacity:.5;}}
+  .bar.xp{background:linear-gradient(90deg,#6c8cff,#b06cff);}
+  .bar.skillxp{background:linear-gradient(90deg,#5ad46a,#8ef29a);}
+  .bar-label{font-size:11px;color:#9aa0c0;margin-top:2px;}
+
+  /* 모드 탭 (왼쪽 사이드바) */
+  .mode-layout{display:flex;gap:12px;align-items:flex-start;}
+  .mode-sidebar{display:flex;flex-direction:column;gap:8px;flex:0 0 92px;position:sticky;top:12px;}
+  .mode-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;}
+  .mode-window{background:#12162a;border:1px solid #2a3050;border-radius:16px;padding:16px;
+    display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+  .mode-window[hidden]{display:none;}
+  .mode-tab{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:12px 6px;text-align:center;
+    cursor:pointer;font-size:13px;font-weight:700;transition:.15s;line-height:1.4;}
+  .mode-tab:hover{border-color:#6c8cff;}
+  .mode-tab.active{background:linear-gradient(135deg,#6c8cff,#b06cff);border-color:transparent;color:#fff;}
+  @media (max-width:520px){
+    .mode-layout{flex-direction:column;}
+    .mode-sidebar{flex-direction:row;flex:none;width:100%;position:static;}
+    .mode-sidebar .mode-tab{flex:1;}
+  }
+
+  /* 사냥터 선택 */
+  .zone-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;}
+  .zone-card{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:12px;cursor:pointer;transition:.15s;
+    display:flex;flex-direction:column;gap:4px;}
+  .zone-card:hover{border-color:#6c8cff;}
+  .zone-card.active{border-color:#6c8cff;background:#1c2350;}
+  .zone-card.locked{opacity:.45;cursor:not-allowed;}
+  .zone-title{font-size:14px;font-weight:700;}
+  .zone-desc{font-size:11px;color:#9aa0c0;}
+
+  /* 전투 화면 */
+  .arena{display:flex;align-items:center;justify-content:space-around;background:#161a2c;border:1px solid #2a3050;
+    border-radius:14px;padding:20px;min-height:220px;position:relative;overflow:hidden;}
+  .fighter{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  canvas.sprite{image-rendering:pixelated;image-rendering:crisp-edges;width:128px;height:128px;}
+  canvas.sprite.boss{width:176px;height:176px;}
+  .fighter-name{font-size:13px;font-weight:700;}
+  .fighter-hpbar{width:130px;}
+  .hit{animation:hit .18s;}
+  @keyframes hit{0%{filter:brightness(2) drop-shadow(0 0 8px #fff);transform:scale(1.05);}100%{filter:none;transform:scale(1);}}
+  .dead{animation:dead .3s forwards;}
+  @keyframes dead{to{opacity:0;transform:translateY(20px) scale(.7);}}
+  .vs{font-size:22px;color:#9aa0c0;font-weight:800;}
+  .dmg-float{position:absolute;font-weight:800;font-size:15px;color:#ffd76b;pointer-events:none;
+    animation:floatup .7s ease-out forwards;}
+  @keyframes floatup{0%{opacity:1;transform:translateY(0);}100%{opacity:0;transform:translateY(-36px);}}
+  .stage-badge{position:absolute;top:10px;left:14px;font-size:12px;background:#0d0f1a;border:1px solid #2a3050;
+    padding:4px 10px;border-radius:8px;color:#9aa0c0;}
+
+  /* 스킬 패널 */
+  .skill-panel{background:#161a2c;border:1px solid #2a3050;border-radius:14px;padding:22px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .skill-icon{font-size:48px;}
+  .skill-title{font-size:16px;font-weight:700;}
+  .skill-sub{font-size:12px;color:#9aa0c0;}
+  .skill-progress-wrap{width:100%;max-width:280px;height:10px;background:#0d0f1a;border-radius:6px;overflow:hidden;border:1px solid #2a3050;}
+  .skill-progress{height:100%;background:linear-gradient(90deg,#5ad46a,#8ef29a);width:0%;transition:width .1s linear;}
+
+  /* 상점 */
+  .section-label{font-size:14px;font-weight:700;color:#9aa0c0;margin:2px 2px -2px;}
+  .shop{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .upg{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;
+    cursor:pointer;transition:.15s;}
+  .upg:hover{border-color:#6c8cff;}
+  .upg:active{transform:scale(.97);}
+  .upg.disabled{opacity:.45;cursor:not-allowed;}
+  .upg-head{display:flex;justify-content:space-between;font-size:14px;font-weight:700;}
+  .upg-desc{font-size:12px;color:#9aa0c0;}
+  .upg-cost{font-size:13px;color:#ffd76b;font-weight:700;}
+  .upg.owned{border-color:#5ad46a;opacity:.7;cursor:default;}
+  .upg.equipped{border-color:#5ad46a;background:#16241c;}
+
+  /* 인벤토리 */
+  .inv-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}
+  .inv-item{background:#161a2c;border:1px solid #2a3050;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:5px;font-size:12px;}
+  .inv-item .inv-name{font-weight:700;font-size:13px;}
+  .inv-item button{background:#6c8cff;border:none;color:#fff;font-size:11px;font-weight:700;padding:5px 8px;border-radius:7px;cursor:pointer;}
+  .inv-item button:disabled{background:#2a3050;color:#565c7a;cursor:not-allowed;}
+  .equip-summary{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:#9aa0c0;}
+  .equip-summary span b{color:#e8eaf5;}
+
+  /* 물약 인벤토리 바 */
+  .potion-bar{display:flex;gap:8px;flex-wrap:wrap;}
+  .potion-item{display:flex;align-items:center;gap:8px;background:#161a2c;border:1px solid #2a3050;border-radius:10px;
+    padding:8px 12px;font-size:13px;}
+  .potion-item .p-count{color:#9aa0c0;}
+  .potion-item button{background:#6c8cff;border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 10px;
+    border-radius:8px;cursor:pointer;}
+  .potion-item button:disabled{background:#2a3050;color:#565c7a;cursor:not-allowed;}
+
+  /* 게임 오버 오버레이 */
+  .overlay{position:fixed;inset:0;background:rgba(6,8,16,.92);z-index:200;display:flex;align-items:center;justify-content:center;}
+  .overlay[hidden]{display:none;}
+  .overlay-box{background:#161a2c;border:1px solid #2a3050;border-radius:16px;padding:32px 36px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:10px;max-width:320px;}
+  .overlay-emoji{font-size:48px;}
+  .overlay-box h2{margin:0;font-size:22px;}
+  .overlay-stats{font-size:14px;color:#9aa0c0;display:flex;flex-direction:column;gap:4px;margin:8px 0;}
+  .overlay-stats b{color:#fff;}
+  .overlay-box .btn-restart{margin-top:6px;background:linear-gradient(135deg,#6c8cff,#b06cff);border:none;color:#fff;
+    font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px;cursor:pointer;}
+
+  .muted-label{font-size:11px;color:#565c7a;font-weight:400;}
+
+  /* 자동 수금 */
+  .autogold-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+  .autogold-card{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:11px;
+    display:flex;flex-direction:column;gap:5px;}
+  .autogold-card .ag-title{font-size:13px;font-weight:700;}
+  .autogold-card .ag-desc{font-size:11px;color:#9aa0c0;line-height:1.4;}
+  .autogold-card .ag-rate{font-size:11px;color:#6c8cff;font-weight:700;}
+  .autogold-card button{background:linear-gradient(135deg,#6c8cff,#b06cff);border:none;color:#fff;font-weight:700;
+    font-size:12px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;margin-top:2px;width:100%;}
+  .autogold-card button:disabled{background:#2a3050;color:#565c7a;cursor:not-allowed;}
+  .autogold-card button.ready{animation:readyPulse .8s infinite alternate;}
+  @keyframes readyPulse{from{box-shadow:0 0 0 0 rgba(108,140,255,.6);}to{box-shadow:0 0 0 9px rgba(108,140,255,0);}}
+  .autogold-card button.agBtn-auto{background:transparent;border:1px solid #2a3050;color:#9aa0c0;font-weight:600;}
+  .autogold-card button.agBtn-auto:hover:not(:disabled){border-color:#6c8cff;color:#e8eaf5;}
+  .autogold-card button.agBtn-auto:disabled{background:transparent;border-color:#20243c;color:#4a5070;}
+
+  /* 로그 */
+  .log{background:#10131f;border:1px solid #2a3050;border-radius:12px;padding:10px 14px;height:100px;
+    overflow-y:auto;font-size:12.5px;color:#9aa0c0;display:flex;flex-direction:column-reverse;gap:3px;}
+  .log b{color:#e8eaf5;}
+
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1c2138;border:1px solid #6c8cff;
+    padding:14px 22px;border-radius:12px;font-size:14px;text-align:center;z-index:99;box-shadow:0 8px 30px rgba(0,0,0,.5);
+    animation:toastIn .25s;}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,-10px);}to{opacity:1;transform:translate(-50%,0);}}
+
+  /* 전체 능력치 요약 */
+  .stat-sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+  .stat-card{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:11px;}
+  .stat-card-head{font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .stat-card-value{font-size:16px;font-weight:800;color:#6c8cff;white-space:nowrap;}
+  .stat-card-breakdown{font-size:10.5px;color:#9aa0c0;margin-top:5px;line-height:1.6;}
+
+  /* 오른쪽 스킬 현황 패널 (창 넓을 때만 표시) */
+  .page-layout{display:flex;gap:20px;align-items:flex-start;justify-content:center;width:100%;}
+  .side-panel{flex:0 0 260px;display:flex;flex-direction:column;gap:10px;position:sticky;top:16px;
+    max-height:calc(100vh - 32px);overflow-y:auto;}
+  #sidePanelSkills{display:flex;flex-direction:column;gap:10px;}
+  .side-panel .stat-sheet{grid-template-columns:1fr;}
+  .side-panel-label{font-size:13px;font-weight:700;color:#9aa0c0;}
+  .side-skill-card{background:#161a2c;border:1px solid #2a3050;border-radius:12px;padding:11px 13px;cursor:pointer;transition:.15s;}
+  .side-skill-card:hover{border-color:#6c8cff;}
+  .side-skill-card.active{border-color:#6c8cff;background:#1c2350;}
+  .side-skill-head{font-size:13px;font-weight:700;display:flex;justify-content:space-between;}
+  .side-skill-sub{font-size:11px;color:#9aa0c0;margin-top:4px;line-height:1.5;}
+  .side-skill-bar-wrap{height:6px;background:#0d0f1a;border-radius:4px;overflow:hidden;margin-top:6px;border:1px solid #2a3050;}
+  .side-skill-bar{height:100%;background:linear-gradient(90deg,#5ad46a,#8ef29a);}
+  @media (max-width:1080px){ .side-panel{display:none;} }
+</style></head>
+<body>
+<h1>⚔️ 방치형 RPG</h1>
+<div class="page-layout">
+<div class="wrap">
+  <div class="stat-row">
+    <div class="stat">Lv.<b id="lvl">1</b></div>
+    <div class="stat">💰 <b id="gold">0</b></div>
+    <div class="stat">⚔️ <b id="atkStat">0</b></div>
+    <div class="stat">❤️ <b id="hpStat">0</b></div>
+    <div class="stat">⚡ <b id="spdStat">0</b>/초</div>
+    <div class="stat">🔮 <b id="rpStat">0</b></div>
+  </div>
+  <div>
+    <div class="bar-wrap"><div id="xpBar" class="bar xp" style="width:0%"></div></div>
+    <div class="bar-label">경험치 <span id="xpText">0/0</span></div>
+  </div>
+
+  <div class="mode-layout">
+    <div class="mode-sidebar" id="modeTabs"></div>
+    <div class="mode-content">
+
+      <div id="combatSection" class="mode-window">
+        <div class="section-label">🗺️ 사냥터</div>
+        <div class="zone-list" id="zoneList"></div>
+
+        <div class="arena" id="arena">
+          <div class="stage-badge" id="stageBadge">-</div>
+          <div class="fighter">
+            <canvas id="heroCanvas" class="sprite" width="32" height="32"></canvas>
+            <div class="fighter-name">용사</div>
+            <div class="bar-wrap fighter-hpbar"><div id="heroHpBar" class="bar hp" style="width:100%"></div></div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="fighter">
+            <canvas id="enemyCanvas" class="sprite" width="32" height="32"></canvas>
+            <div class="fighter-name" id="enemyName">-</div>
+            <div class="bar-wrap fighter-hpbar"><div id="enemyHpBar" class="bar hp" style="width:100%"></div></div>
+          </div>
+        </div>
+
+        <div class="potion-bar" id="potionBar"></div>
+
+        <div class="section-label">⚔️ 강화 상점</div>
+        <div class="shop" id="shop"></div>
+
+        <div class="section-label">🧪 물약 상점</div>
+        <div class="shop" id="potionShop"></div>
+      </div>
+
+      <div id="gatherSection" class="mode-window" hidden>
+        <div id="skillPanel" class="skill-panel"></div>
+        <div class="section-label">🎒 채집한 재료</div>
+        <div class="inv-list" id="materialInvList"></div>
+      </div>
+
+      <div id="smithingSection" class="mode-window" hidden>
+        <div class="section-label">🛡️ 장비</div>
+        <div class="equip-summary" id="equipSummary"></div>
+        <div class="inv-list" id="gearInvList"></div>
+
+        <div class="section-label">🔨 대장간 <span class="muted-label">(광물 + 골드로 제작)</span></div>
+        <div class="shop" id="forgeList"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section-label">⏳ 자동 수금</div>
+  <div id="autoGoldList" class="autogold-list"></div>
+
+  <div class="section-label">🔮 환생</div>
+  <div id="rebirthNowCard" class="autogold-card"></div>
+
+  <div class="section-label">🔮 환생 상점 <span class="muted-label">(환생해도 유지됨)</span></div>
+  <div class="shop" id="prestigeShop"></div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="side-panel" id="sidePanel">
+  <div id="sidePanelSkills"></div>
+  <div class="section-label">📋 전체 능력치</div>
+  <div class="stat-sheet" id="statSheet"></div>
+</div>
+</div>
+
+<div id="gameOverOverlay" class="overlay" hidden>
+  <div class="overlay-box">
+    <div class="overlay-emoji">💀</div>
+    <h2>게임 오버</h2>
+    <div class="overlay-stats">
+      <div>도달 지점 <b id="goStage"></b></div>
+      <div>레벨 <b id="goLevel"></b></div>
+      <div>보유 골드 <b id="goGold"></b></div>
+      <div>🔮 획득한 환생 포인트 <b id="goRP"></b></div>
+      <div>🔮 누적 환생 포인트 <b id="goRPTotal"></b></div>
+    </div>
+    <button id="goRestart" class="btn-restart">🔮 환생하기</button>
+  </div>
+</div>
+
+<script>
+/* ========================= 픽셀아트 스프라이트 (캔버스 도트 드로잉) ========================= */
+function px(ctx,x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
+
+function drawHero(ctx){
+  ctx.clearRect(0,0,32,32);
+  const skin='#ffd9a0', helm='#4a6fdc', helmDark='#33499e', plume='#ff6b6b',
+        armor='#5c7cf0', armorDark='#3d54b8', trim='#e8ecff', leg='#2b3050', boot='#1a1a2e', eye='#1a1a2e';
+  px(ctx,8,29,16,2,'#00000055');
+  px(ctx,11,23,4,6,leg); px(ctx,17,23,4,6,leg);
+  px(ctx,10,28,6,3,boot); px(ctx,16,28,6,3,boot);
+  px(ctx,7,14,3,9,armorDark); px(ctx,22,14,3,9,armorDark);
+  px(ctx,7,21,3,3,skin); px(ctx,22,21,3,3,skin);
+  px(ctx,9,13,14,9,armor);
+  px(ctx,9,13,14,2,trim);
+  px(ctx,9,20,14,2,trim);
+  px(ctx,14,15,4,5,armorDark);
+  px(ctx,12,9,8,5,skin);
+  px(ctx,13,11,2,1,eye); px(ctx,17,11,2,1,eye);
+  px(ctx,10,3,12,3,helm);
+  px(ctx,9,6,14,4,helm);
+  px(ctx,9,6,14,1,trim);
+  px(ctx,14,1,4,3,plume);
+  px(ctx,11,9,2,2,helmDark); px(ctx,19,9,2,2,helmDark);
+}
+
+function drawSlime(ctx,t){
+  ctx.clearRect(0,0,32,32);
+  const body='#5ad46a', dark='#3aa64a', light='#8ef29a', eye='#12291a';
+  const bounce = t? Math.sin(t/220)*2 : 0;
+  const y = 14+bounce;
+  px(ctx,10,26,12,3,'#00000040');
+  px(ctx,8,y,16,12,body);
+  px(ctx,6,y+4,20,8,body);
+  px(ctx,6,y+8,20,4,dark);
+  px(ctx,10,y+2,6,4,light);
+  px(ctx,11,y+6,2,2,eye); px(ctx,19,y+6,2,2,eye);
+}
+
+function drawBat(ctx,t){
+  ctx.clearRect(0,0,32,32);
+  const body='#6b4a9e', dark='#4a2f78', wing='#8a63c9', eye='#ff6b6b';
+  const flap = t? Math.sin(t/110)*6 : 0;
+  px(ctx,12,26,8,2,'#00000040');
+  px(ctx,4,10-flap*0.3,10,7,wing);
+  px(ctx,18,10-flap*0.3,10,7,wing);
+  px(ctx,11,8,10,10,body);
+  px(ctx,9,6,5,4,dark); px(ctx,18,6,5,4,dark);
+  px(ctx,13,12,2,2,eye); px(ctx,17,12,2,2,eye);
+}
+
+function drawSkeleton(ctx){
+  ctx.clearRect(0,0,32,32);
+  const bone='#e9e6d8', dark='#b7b3a0', eye='#ff6b6b';
+  px(ctx,10,29,12,2,'#00000040');
+  px(ctx,12,22,3,7,bone); px(ctx,17,22,3,7,bone);
+  px(ctx,10,13,12,9,bone);
+  px(ctx,11,15,10,1,dark); px(ctx,11,18,10,1,dark);
+  px(ctx,7,14,3,8,bone); px(ctx,22,14,3,8,bone);
+  px(ctx,11,6,10,7,bone);
+  px(ctx,13,9,2,2,eye); px(ctx,17,9,2,2,eye);
+  px(ctx,14,12,4,1,dark);
+}
+
+function drawGoblin(ctx){
+  ctx.clearRect(0,0,32,32);
+  const skin='#7bc158', dark='#4f8f34', cloth='#8a5a2e', eye='#ffd76b', ear='#5ea23c';
+  px(ctx,9,29,14,2,'#00000040');
+  px(ctx,11,22,4,7,skin); px(ctx,17,22,4,7,skin);
+  px(ctx,9,15,14,8,cloth);
+  px(ctx,6,14,4,7,skin); px(ctx,22,14,4,7,skin);
+  px(ctx,10,6,12,9,skin);
+  px(ctx,6,7,4,3,ear); px(ctx,22,7,4,3,ear);
+  px(ctx,13,10,2,2,eye); px(ctx,17,10,2,2,eye);
+  px(ctx,13,14,6,1,dark);
+}
+
+function drawDragon(ctx,t){
+  ctx.clearRect(0,0,32,32);
+  const body='#e0503f', dark='#a8321f', wing='#ff7a5c', eye='#ffe66b', horn='#4a2020';
+  const flap = t? Math.sin(t/160)*3 : 0;
+  px(ctx,8,29,16,2,'#00000050');
+  px(ctx,2,12-flap*0.4,10,10,wing);
+  px(ctx,20,12-flap*0.4,10,10,wing);
+  px(ctx,10,16,12,11,body);
+  px(ctx,11,24,3,5,dark); px(ctx,18,24,3,5,dark);
+  px(ctx,9,7,14,10,body);
+  px(ctx,9,13,14,3,dark);
+  px(ctx,11,3,2,5,horn); px(ctx,19,3,2,5,horn);
+  px(ctx,12,10,3,3,eye); px(ctx,17,10,3,3,eye);
+  px(ctx,13,15,6,2,'#3a1010');
+}
+
+function drawOrc(ctx){
+  ctx.clearRect(0,0,32,32);
+  const skin='#5a8a3e', dark='#3c5e29', tusk='#f5f0e0', eye='#ff3b3b', strap='#4a2e18';
+  px(ctx,9,29,14,2,'#00000050');
+  px(ctx,11,23,4,7,skin); px(ctx,17,23,4,7,skin);
+  px(ctx,10,28,6,3,strap); px(ctx,16,28,6,3,strap);
+  px(ctx,8,14,16,9,dark);
+  px(ctx,8,20,16,2,strap);
+  px(ctx,5,15,4,8,skin); px(ctx,23,15,4,8,skin);
+  px(ctx,9,6,14,9,skin);
+  px(ctx,5,8,4,3,dark); px(ctx,23,8,4,3,dark);
+  px(ctx,10,9,12,1,'#2a4018');
+  px(ctx,12,10,2,2,eye); px(ctx,18,10,2,2,eye);
+  px(ctx,12,14,2,3,tusk); px(ctx,18,14,2,3,tusk);
+}
+
+function drawWraith(ctx){
+  ctx.clearRect(0,0,32,32);
+  const robe='#2a1f3d', robeLight='#453467', glow='#6cffe0', dark='#150f22';
+  px(ctx,8,28,16,3,'#00000030');
+  px(ctx,9,20,14,10,robe);
+  px(ctx,7,24,4,6,robe); px(ctx,21,24,4,6,robe);
+  px(ctx,10,20,12,2,robeLight);
+  px(ctx,6,16,4,8,robe); px(ctx,22,16,4,8,robe);
+  px(ctx,10,8,12,10,dark);
+  px(ctx,9,10,14,7,robe);
+  px(ctx,12,13,3,3,glow); px(ctx,17,13,3,3,glow);
+}
+
+function drawTroll(ctx){
+  ctx.clearRect(0,0,32,32);
+  const skin='#7a8a99', dark='#4d5866', horn='#e0d9c9', eye='#ff8c3b';
+  px(ctx,8,29,16,2,'#00000060');
+  px(ctx,10,23,5,7,dark); px(ctx,17,23,5,7,dark);
+  px(ctx,6,12,20,11,skin);
+  px(ctx,6,12,20,3,dark);
+  px(ctx,2,14,5,10,skin); px(ctx,25,14,5,10,skin);
+  px(ctx,10,4,12,9,skin);
+  px(ctx,9,2,3,4,horn); px(ctx,20,2,3,4,horn);
+  px(ctx,10,7,12,1,dark);
+  px(ctx,12,8,2,2,eye); px(ctx,18,8,2,2,eye);
+}
+
+function drawShadowFiend(ctx){
+  ctx.clearRect(0,0,32,32);
+  const body='#1a1220', crack='#ff2d55', eye='#ff2d55', hi='#3a2540';
+  px(ctx,10,29,12,2,'#00000060');
+  px(ctx,10,10,12,18,body);
+  px(ctx,8,14,4,10,body); px(ctx,20,14,4,10,body);
+  px(ctx,13,4,2,7,body); px(ctx,17,4,2,7,body); px(ctx,15,2,2,9,body);
+  px(ctx,11,18,10,2,hi);
+  px(ctx,13,16,1,6,crack); px(ctx,18,20,1,5,crack);
+  px(ctx,12,14,3,3,eye); px(ctx,17,14,3,3,eye);
+}
+
+function drawGolem(ctx){
+  ctx.clearRect(0,0,32,32);
+  const body='#8a7a63', dark='#5c5040', core='#6cd4ff', crack='#3a3226';
+  px(ctx,6,29,20,2,'#00000060');
+  px(ctx,9,22,6,8,dark); px(ctx,17,22,6,8,dark);
+  px(ctx,5,11,22,13,body);
+  px(ctx,5,11,22,3,dark);
+  px(ctx,1,13,5,12,body); px(ctx,26,13,5,12,body);
+  px(ctx,11,3,10,8,dark);
+  px(ctx,13,6,2,2,core); px(ctx,17,6,2,2,core);
+  px(ctx,13,17,6,6,core);
+  px(ctx,9,15,1,8,crack); px(ctx,22,18,1,6,crack);
+}
+
+function drawDarkKnight(ctx){
+  ctx.clearRect(0,0,32,32);
+  const armor='#232733', dark='#141821', trim='#8a1f2b', eye='#ff2d3b', helm='#1a1d26';
+  px(ctx,8,29,16,2,'#00000060');
+  px(ctx,11,22,5,8,dark); px(ctx,17,22,5,8,dark);
+  px(ctx,10,28,6,3,'#0a0a10'); px(ctx,16,28,6,3,'#0a0a10');
+  px(ctx,6,13,4,10,dark); px(ctx,23,13,4,10,dark);
+  px(ctx,9,12,14,11,armor);
+  px(ctx,9,12,14,2,trim);
+  px(ctx,9,21,14,2,trim);
+  px(ctx,9,3,14,10,helm);
+  px(ctx,9,3,14,1,trim);
+  px(ctx,8,1,2,4,dark); px(ctx,22,1,2,4,dark);
+  px(ctx,12,8,3,1,eye); px(ctx,17,8,3,1,eye);
+}
+
+function drawDemonLord(ctx,t){
+  ctx.clearRect(0,0,32,32);
+  const skin='#5a2a78', dark='#3a1a52', horn='#1a1220', wing='#7a3aa0', eye='#ffe66b';
+  const flap = t? Math.sin(t/150)*4 : 0;
+  px(ctx,8,29,16,2,'#00000060');
+  px(ctx,0,10-flap*0.3,8,14,wing);
+  px(ctx,24,10-flap*0.3,8,14,wing);
+  px(ctx,11,23,5,7,dark); px(ctx,17,23,5,7,dark);
+  px(ctx,9,13,14,10,skin);
+  px(ctx,9,13,14,2,dark);
+  px(ctx,7,14,3,8,skin); px(ctx,22,14,3,8,skin);
+  px(ctx,10,5,12,9,skin);
+  px(ctx,8,1,3,6,horn); px(ctx,21,1,3,6,horn);
+  px(ctx,12,9,2,2,eye); px(ctx,18,9,2,2,eye);
+  px(ctx,13,13,6,1,dark);
+}
+
+function drawTree(ctx, treeKey, shake){
+  ctx.clearRect(0,0,32,32);
+  const trunk='#6b4226', trunkDark='#4a2d1a';
+  const leafSet = {
+    normal:{main:'#4a9c4a',dark:'#357a35',light:'#6fc26f'},
+    oak:{main:'#3c7a3c',dark:'#2a5c2a',light:'#5a9c5a'},
+    willow:{main:'#5ad46a',dark:'#3aa64a',light:'#8ef29a'},
+    maple:{main:'#e0703f',dark:'#b3502a',light:'#ff9a6b'},
+    yew:{main:'#2f5c3a',dark:'#1e3f27',light:'#4a7a55'},
+    magic:{main:'#8a5ce0',dark:'#6a3ec0',light:'#b08cff'},
+    redwood:{main:'#a85c3a',dark:'#7a3e22',light:'#c98a5c'},
+    ancient:{main:'#2a4a2a',dark:'#1a331a',light:'#4a6a4a'},
+    celestial:{main:'#ffe66b',dark:'#e0b83f',light:'#fff2b0'},
+  };
+  const c = leafSet[treeKey] || leafSet.normal;
+  const sx = shake ? (Math.random()*2-1) : 0;
+  px(ctx,8,29,16,2,'#00000040');
+  px(ctx,14+sx,17,4,13,trunk);
+  px(ctx,14+sx,26,4,4,trunkDark);
+  px(ctx,6+sx,7,20,15,c.main);
+  px(ctx,9+sx,3,14,8,c.main);
+  px(ctx,4+sx,12,6,8,c.dark);
+  px(ctx,22+sx,12,6,8,c.dark);
+  px(ctx,11+sx,5,8,4,c.light);
+}
+
+function drawFishSpot(ctx, fishKey, splash){
+  ctx.clearRect(0,0,32,32);
+  const water='#2a6ba8', waterDark='#1d4d7a', waterLight='#4a8ecf', splashColor='#dff2ff';
+  const fishColors = {
+    shrimp:'#ff9a6b', sardine:'#c9d4e0', trout:'#7ab8d4', crab:'#e0503f', pufferfish:'#ffd76b',
+    lobster:'#e0503f', squid:'#c988e0', octopus:'#e06ba0', legendary:'#ffe66b',
+  };
+  const fc = fishColors[fishKey] || '#c9d4e0';
+  px(ctx,0,20,32,12,water);
+  px(ctx,0,20,32,3,waterLight);
+  px(ctx,0,26,32,6,waterDark);
+  const jump = splash ? -6 : 0;
+  px(ctx,11,17+jump,10,5,fc);
+  px(ctx,20,18+jump,4,3,fc);
+  px(ctx,9,18+jump,3,2,'#1a1a1a');
+  if(splash){
+    px(ctx,7,13,2,2,splashColor); px(ctx,23,13,2,2,splashColor);
+    px(ctx,5,18,2,2,splashColor); px(ctx,25,18,2,2,splashColor);
+    px(ctx,15,10,2,2,splashColor);
+  }
+}
+
+function drawOreRock(ctx, oreKey, crack){
+  ctx.clearRect(0,0,32,32);
+  const oreColors = {
+    copper:'#c87a3e', tin:'#c9c9c9', iron:'#5a5a5a', silver:'#e0e0e0', gold:'#ffd23f',
+    mithril:'#5ac8e0', adamantite:'#5ad46a', rune:'#b06cff', dragon:'#ff3b3b',
+  };
+  const rock='#6b6b6b', rockDark='#4a4a4a';
+  const c = oreColors[oreKey] || '#c87a3e';
+  const sx = crack ? (Math.random()*2-1) : 0;
+  px(ctx,8,29,16,2,'#00000040');
+  px(ctx,4+sx,14,24,14,rock);
+  px(ctx,4+sx,24,24,4,rockDark);
+  px(ctx,8+sx,9,16,9,rock);
+  px(ctx,9+sx,17,4,4,c); px(ctx,18+sx,15,4,4,c); px(ctx,13+sx,22,4,4,c); px(ctx,22+sx,20,3,3,c);
+}
+
+const SPRITES = {
+  slime:{draw:drawSlime,name:'슬라임',animated:true},
+  bat:{draw:drawBat,name:'박쥐',animated:true},
+  skeleton:{draw:drawSkeleton,name:'스켈레톤',animated:false},
+  goblin:{draw:drawGoblin,name:'고블린',animated:false},
+  orc:{draw:drawOrc,name:'오크',animated:false},
+  wraith:{draw:drawWraith,name:'레이스',animated:false},
+  troll:{draw:drawTroll,name:'강철 트롤',animated:false},
+  shadowfiend:{draw:drawShadowFiend,name:'그림자 마수',animated:false},
+  dragon:{draw:drawDragon,name:'드래곤',animated:true,boss:true},
+  golem:{draw:drawGolem,name:'스톤 골렘',animated:false,boss:true},
+  darkknight:{draw:drawDarkKnight,name:'다크 나이트',animated:false,boss:true},
+  demonlord:{draw:drawDemonLord,name:'마왕',animated:true,boss:true},
+};
+
+/* ========================= 사냥터 ========================= */
+const ZONES = [
+  {key:'forest', name:'숲', icon:'🌲', unlockLevel:1, baseStage:1,
+    monsterPool:['slime','bat','skeleton','goblin'], boss:'dragon', killsToBoss:10},
+  {key:'cave', name:'동굴', icon:'🕳️', unlockLevel:15, baseStage:10,
+    monsterPool:['skeleton','goblin','orc','wraith'], boss:'golem', killsToBoss:12},
+  {key:'volcano', name:'화산', icon:'🌋', unlockLevel:30, baseStage:22,
+    monsterPool:['orc','wraith','troll','shadowfiend'], boss:'demonlord', killsToBoss:15},
+  {key:'frozen', name:'얼음 협곡', icon:'❄️', unlockLevel:50, baseStage:40,
+    monsterPool:['skeleton','wraith','troll','goblin'], boss:'darkknight', killsToBoss:16},
+  {key:'desert', name:'사막 유적', icon:'🏜️', unlockLevel:70, baseStage:58,
+    monsterPool:['orc','skeleton','goblin','wraith'], boss:'dragon', killsToBoss:18},
+  {key:'abyss', name:'어둠의 성채', icon:'🌑', unlockLevel:95, baseStage:80,
+    monsterPool:['wraith','shadowfiend','troll','orc'], boss:'golem', killsToBoss:20},
+  {key:'sky', name:'천공의 섬', icon:'✨', unlockLevel:120, baseStage:102,
+    monsterPool:['bat','wraith','shadowfiend','slime'], boss:'demonlord', killsToBoss:22},
+  {key:'rift', name:'차원의 균열', icon:'🌌', unlockLevel:150, baseStage:128,
+    monsterPool:['troll','shadowfiend','orc','wraith'], boss:'darkknight', killsToBoss:25},
+  {key:'infinite', name:'무한의 틈', icon:'🌀', unlockLevel:190, baseStage:160,
+    monsterPool:['troll','shadowfiend','orc','wraith'], boss:'golem', killsToBoss:30},
+];
+function zoneByKey(key){ return ZONES.find(z=>z.key===key); }
+function currentZone(){ return zoneByKey(S.currentZone); }
+function effectiveStage(zoneKey){
+  const zone = zoneByKey(zoneKey);
+  return zone.baseStage + S.zoneProgress[zoneKey].subStage - 1;
+}
+
+/* ========================= 게임 상태 ========================= */
+const SAVE_KEY = 'idlerpg_save_v1';
+const heroCv = document.getElementById('heroCanvas'), heroCtx = heroCv.getContext('2d');
+const enemyCv = document.getElementById('enemyCanvas'), enemyCtx = enemyCv.getContext('2d');
+heroCtx.imageSmoothingEnabled = false; enemyCtx.imageSmoothingEnabled = false;
+
+function freshZoneProgress(){
+  const zp = {};
+  ZONES.forEach(z=>{ zp[z.key] = {killsInZone:0, subStage:1}; });
+  return zp;
+}
+function freshAutoGold(){
+  const ag = {};
+  AUTO_GOLD_TIERS.forEach(t=>{ ag[t.key] = {unlocked:false, readyAt:0, autoClaim:false}; });
+  return ag;
+}
+
+let S = {
+  level:1, xp:0, gold:0,
+  baseHp:70, baseAtk:6, baseSpd:1.0, goldMult:1,
+  hp:70, maxHp:70,
+  upLvl:{atk:0, hp:0, spd:0, gold:0},
+  potions:{small:0, medium:0, large:0},
+  autoGold:{
+    t1:{unlocked:false,readyAt:0,autoClaim:false}, t2:{unlocked:false,readyAt:0,autoClaim:false},
+    t3:{unlocked:false,readyAt:0,autoClaim:false}, t4:{unlocked:false,readyAt:0,autoClaim:false},
+    t5:{unlocked:false,readyAt:0,autoClaim:false}, t6:{unlocked:false,readyAt:0,autoClaim:false},
+    t7:{unlocked:false,readyAt:0,autoClaim:false}, t8:{unlocked:false,readyAt:0,autoClaim:false},
+  },
+  gameOver:false,
+  lastSave:Date.now(),
+  prestige:{points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0}},
+  currentZone:'forest',
+  zoneProgress: freshZoneProgress(),
+  equipment:{weapon:null, armor:null, accessory:null},
+  ownedGear:{},
+  activeMode:'combat',
+  selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
+  skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
+  inventory:{},
+};
+const PRESTIGE_UPG_DEF = [
+  {key:'power', icon:'💪', title:'초심자의 힘', desc:'시작 공격력 +1, 시작 체력 +2 영구 증가'},
+  {key:'wealth', icon:'💰', title:'축복받은 지갑', desc:'골드 획득량 영구 +3%'},
+  {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +3%'},
+  {key:'vitality', icon:'❤️', title:'불굴의 심장', desc:'최대체력 영구 +4%'},
+  {key:'headstart', icon:'🌱', title:'새출발 자금', desc:'환생할 때마다 시작 골드 +80'},
+];
+function prestigeCost(key, lvl){
+  const base = {power:3, wealth:3, wisdom:3, vitality:3, headstart:4}[key];
+  const rate = key==='headstart' ? 1.6 : 1.5;
+  return Math.ceil(base*Math.pow(rate, lvl));
+}
+const AUTO_GOLD_TIERS = [
+  {key:'t1', icon:'⏱️', title:'1초', cost:50,    cycleMs:1000,   rewardBase:1},
+  {key:'t2', icon:'⏱️', title:'5초', cost:150,   cycleMs:5000,   rewardBase:8},
+  {key:'t3', icon:'⏱️', title:'10초', cost:400,   cycleMs:10000,  rewardBase:20},
+  {key:'t4', icon:'🗃️', title:'30초', cost:1000,  cycleMs:30000,  rewardBase:90},
+  {key:'t5', icon:'🗄️', title:'1분', cost:2500,  cycleMs:60000,  rewardBase:270},
+  {key:'t6', icon:'🗄️', title:'3분', cost:6000,  cycleMs:180000, rewardBase:1260},
+  {key:'t7', icon:'🏦', title:'5분', cost:12000, cycleMs:300000, rewardBase:3000},
+  {key:'t8', icon:'🏦', title:'10분', cost:25000, cycleMs:600000, rewardBase:9000},
+];
+
+/* ========================= 장비 ========================= */
+const EQUIPMENT_CATALOG = [
+  {key:'wpn1', slot:'weapon', name:'낡은 검', icon:'🗡️', atk:3, cost:150},
+  {key:'wpn2', slot:'weapon', name:'강철 검', icon:'⚔️', atk:9, cost:1200},
+  {key:'wpn3', slot:'weapon', name:'미스릴 검', icon:'🔱', atk:22, cost:6000},
+  {key:'wpn4', slot:'weapon', name:'용살자의 검', icon:'💥', atk:50, cost:25000},
+  {key:'arm1', slot:'armor', name:'가죽 갑옷', icon:'🥋', hp:20, cost:150},
+  {key:'arm2', slot:'armor', name:'사슬 갑옷', icon:'🛡️', hp:65, cost:1200},
+  {key:'arm3', slot:'armor', name:'판금 갑옷', icon:'🛡️', hp:180, cost:6000},
+  {key:'arm4', slot:'armor', name:'용비늘 갑옷', icon:'🐲', hp:450, cost:25000},
+  {key:'acc1', slot:'accessory', name:'행운의 반지', icon:'💍', goldPct:8, cost:500},
+  {key:'acc2', slot:'accessory', name:'현자의 목걸이', icon:'📿', xpPct:8, cost:2500},
+  {key:'acc3', slot:'accessory', name:'전사의 팔찌', icon:'💪', atk:6, hp:25, cost:9000},
+];
+const SLOT_NAMES = {weapon:'무기', armor:'방어구', accessory:'장신구'};
+function equipBonus(stat){
+  let sum = 0;
+  Object.values(S.equipment).forEach(key=>{
+    if(!key) return;
+    const item = EQUIPMENT_CATALOG.find(e=>e.key===key);
+    if(item && item[stat]) sum += item[stat];
+  });
+  return sum;
+}
+
+/* ========================= 스킬링 (벌목/낚시/채광 공통 채집 엔진) ========================= */
+const SKILL_NAMES = {woodcutting:'벌목', fishing:'낚시', mining:'채광'};
+
+const TREES = [
+  {key:'normal',    name:'일반 나무',   icon:'🌳', level:1,  xp:4,   itemKey:'log_normal',    itemName:'통나무',       sellPrice:2,   actionMs:3000},
+  {key:'oak',       name:'참나무',      icon:'🌳', level:5,  xp:8,   itemKey:'log_oak',       itemName:'참나무 목재',  sellPrice:4,   actionMs:3300},
+  {key:'willow',    name:'버드나무',    icon:'🌲', level:12, xp:14,  itemKey:'log_willow',    itemName:'버들 목재',    sellPrice:7,   actionMs:3600},
+  {key:'maple',     name:'단풍나무',    icon:'🍁', level:20, xp:22,  itemKey:'log_maple',     itemName:'단풍 목재',    sellPrice:12,  actionMs:3900},
+  {key:'yew',       name:'주목',        icon:'🌲', level:30, xp:35,  itemKey:'log_yew',       itemName:'주목 목재',    sellPrice:20,  actionMs:4300},
+  {key:'magic',     name:'마법나무',    icon:'✨', level:42, xp:55,  itemKey:'log_magic',     itemName:'마법 목재',    sellPrice:35,  actionMs:4700},
+  {key:'redwood',   name:'레드우드',    icon:'🌴', level:55, xp:85,  itemKey:'log_redwood',   itemName:'레드우드 목재', sellPrice:58,  actionMs:5100},
+  {key:'ancient',   name:'고대 나무',   icon:'🌳', level:70, xp:130, itemKey:'log_ancient',   itemName:'고대 목재',    sellPrice:95,  actionMs:5500},
+  {key:'celestial', name:'천상수',      icon:'🌟', level:90, xp:200, itemKey:'log_celestial', itemName:'천상 목재',    sellPrice:160, actionMs:6000},
+];
+const FISH = [
+  {key:'shrimp',     name:'새우',    icon:'🦐', level:1,  xp:4,   itemKey:'fish_shrimp',    itemName:'새우',         sellPrice:2,   actionMs:3000},
+  {key:'sardine',    name:'정어리',  icon:'🐟', level:5,  xp:8,   itemKey:'fish_sardine',   itemName:'정어리',       sellPrice:4,   actionMs:3300},
+  {key:'trout',      name:'송어',    icon:'🐠', level:12, xp:14,  itemKey:'fish_trout',     itemName:'송어',         sellPrice:7,   actionMs:3600},
+  {key:'crab',       name:'게',      icon:'🦀', level:20, xp:22,  itemKey:'fish_crab',      itemName:'게',           sellPrice:12,  actionMs:3900},
+  {key:'pufferfish', name:'복어',    icon:'🐡', level:30, xp:35,  itemKey:'fish_puffer',    itemName:'복어',         sellPrice:20,  actionMs:4300},
+  {key:'lobster',    name:'랍스터',  icon:'🦞', level:42, xp:55,  itemKey:'fish_lobster',   itemName:'랍스터',       sellPrice:35,  actionMs:4700},
+  {key:'squid',      name:'오징어',  icon:'🦑', level:55, xp:85,  itemKey:'fish_squid',     itemName:'오징어',       sellPrice:58,  actionMs:5100},
+  {key:'octopus',    name:'문어',    icon:'🐙', level:70, xp:130, itemKey:'fish_octopus',   itemName:'문어',         sellPrice:95,  actionMs:5500},
+  {key:'legendary',  name:'전설의 물고기', icon:'🐋', level:90, xp:200, itemKey:'fish_legendary', itemName:'전설의 물고기', sellPrice:160, actionMs:6000},
+];
+const ORES = [
+  {key:'copper',     name:'구리',     icon:'🟤', level:1,  xp:4,   itemKey:'ore_copper',  itemName:'구리 광석',    sellPrice:2,   actionMs:3200},
+  {key:'tin',        name:'주석',     icon:'⚪', level:5,  xp:8,   itemKey:'ore_tin',     itemName:'주석 광석',    sellPrice:4,   actionMs:3500},
+  {key:'iron',       name:'철',       icon:'⚫', level:12, xp:14,  itemKey:'ore_iron',    itemName:'철 광석',      sellPrice:7,   actionMs:3800},
+  {key:'silver',     name:'은',       icon:'⬜', level:20, xp:22,  itemKey:'ore_silver',  itemName:'은 광석',      sellPrice:12,  actionMs:4100},
+  {key:'gold',       name:'금',       icon:'🟡', level:30, xp:35,  itemKey:'ore_gold',    itemName:'금 광석',      sellPrice:20,  actionMs:4500},
+  {key:'mithril',    name:'미스릴',   icon:'🔵', level:42, xp:55,  itemKey:'ore_mithril', itemName:'미스릴 광석',  sellPrice:35,  actionMs:4900},
+  {key:'adamantite', name:'아다만틴', icon:'🟢', level:55, xp:85,  itemKey:'ore_adamant', itemName:'아다만틴 광석', sellPrice:58,  actionMs:5300},
+  {key:'rune',       name:'룬',       icon:'🟣', level:70, xp:130, itemKey:'ore_rune',    itemName:'룬 광석',      sellPrice:95,  actionMs:5700},
+  {key:'dragon',     name:'용의 광석', icon:'🔴', level:90, xp:200, itemKey:'ore_dragon',  itemName:'용의 광석',    sellPrice:160, actionMs:6200},
+];
+const GATHER_CATALOGS = [TREES, FISH, ORES];
+function treeByKey(key){ return TREES.find(t=>t.key===key) || TREES[0]; }
+function materialSellPrice(key){
+  for(const cat of GATHER_CATALOGS){ const item = cat.find(t=>t.itemKey===key); if(item) return item.sellPrice; }
+  return 1;
+}
+function materialDisplayName(key){
+  for(const cat of GATHER_CATALOGS){ const item = cat.find(t=>t.itemKey===key); if(item) return item.itemName+' '+item.icon; }
+  return key;
+}
+function skillXpToNext(level){ return Math.round(15*Math.pow(1.2, level-1)); }
+
+function deriveStats(){
+  const p = S.prestige.upLvl;
+  S.maxHp = Math.round((S.baseHp + S.upLvl.hp*12 + S.level*2 + p.power*2 + equipBonus('hp')) * (1+p.vitality*0.04));
+  S.atk = Math.round((S.baseAtk + S.upLvl.atk*2 + p.power*1 + equipBonus('atk')) * (1+S.level*0.06));
+  S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
+  S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.03) * (1 + equipBonus('goldPct')/100);
+}
+function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
+function upgradeCost(key, lvl){
+  const base = {atk:15, hp:15, spd:40, gold:30}[key];
+  return Math.round(base*Math.pow(1.16, lvl));
+}
+
+let enemy = null;
+function enemyStatsFor(stage, isBoss){
+  const hpScale = Math.pow(1.16, stage-1);
+  const atkScale = Math.pow(1.13, stage-1);
+  const rewardScale = Math.pow(1.16, stage-1);
+  let hp = Math.round(15*hpScale), atk = Math.round(1.8*atkScale), gold = Math.round(2*rewardScale), xp = Math.round(1.5*rewardScale);
+  if(isBoss){ hp=Math.round(hp*6.5); atk=Math.round(atk*2.2); gold=Math.round(gold*6); xp=Math.round(xp*6); }
+  return {hp, maxHp:hp, atk, gold, xp};
+}
+function spawnEnemy(){
+  const zone = currentZone();
+  const zp = S.zoneProgress[zone.key];
+  const effStage = effectiveStage(zone.key);
+  const isBoss = zp.killsInZone >= zone.killsToBoss;
+  const typeKey = isBoss ? zone.boss : zone.monsterPool[(Math.random()*zone.monsterPool.length)|0];
+  const st = enemyStatsFor(effStage, isBoss);
+  enemy = {type:typeKey, isBoss, ...st, atkCd:0};
+  document.getElementById('enemyName').textContent = (isBoss?'👑 ':'') + SPRITES[typeKey].name;
+  enemyCv.classList.toggle('boss', isBoss);
+  document.getElementById('stageBadge').textContent = zone.icon+' '+zone.name+' '+zp.subStage+'단계 · '+(isBoss?'보스전!':zp.killsInZone+'/'+zone.killsToBoss);
+  renderEnemyHp();
+}
+
+function log(msg){
+  const l = document.getElementById('log');
+  const line = document.createElement('div');
+  line.innerHTML = msg;
+  l.prepend(line);
+  while(l.children.length>40) l.removeChild(l.lastChild);
+}
+function floatDmg(target, text, color){
+  const arena = document.getElementById('arena');
+  const el = document.createElement('div');
+  el.className='dmg-float'; el.textContent=text; el.style.color=color||'#ffd76b';
+  const box = target.getBoundingClientRect(), abox = arena.getBoundingClientRect();
+  el.style.left = (box.left-abox.left+box.width/2-10)+'px';
+  el.style.top = (box.top-abox.top-4)+'px';
+  arena.appendChild(el);
+  setTimeout(()=>el.remove(),700);
+}
+function flash(el){ el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); }
+
+function renderHeroHp(){
+  const bar = document.getElementById('heroHpBar');
+  bar.style.width = Math.max(0,S.hp/S.maxHp*100)+'%';
+  bar.classList.toggle('low', S.hp>0 && S.hp/S.maxHp<0.3);
+}
+function renderEnemyHp(){ document.getElementById('enemyHpBar').style.width = Math.max(0,enemy.hp/enemy.maxHp*100)+'%'; }
+function renderStats(){
+  document.getElementById('lvl').textContent = S.level;
+  document.getElementById('gold').textContent = Math.floor(S.gold).toLocaleString();
+  document.getElementById('atkStat').textContent = S.atk;
+  document.getElementById('hpStat').textContent = S.maxHp;
+  document.getElementById('spdStat').textContent = S.spd.toFixed(2);
+  document.getElementById('rpStat').textContent = S.prestige.points.toLocaleString();
+  const need = xpToNext(S.level);
+  document.getElementById('xpBar').style.width = Math.min(100,S.xp/need*100)+'%';
+  document.getElementById('xpText').textContent = Math.floor(S.xp)+'/'+need;
+  renderHeroHp();
+  renderSidePanel();
+  renderStatSheet();
+}
+
+function renderStatSheet(){
+  const el = document.getElementById('statSheet');
+  if(!el) return;
+  const p = S.prestige.upLvl;
+  const goldPct = Math.round((S.goldMult-1)*100);
+  const xpPct = Math.round((p.wisdom*0.03 + equipBonus('xpPct')/100)*100);
+  const cards = [
+    {icon:'⚔️', name:'공격력', value:S.atk, lines:[
+      `기본 ${S.baseAtk}`, `강화 +${S.upLvl.atk*2}`, `환생 +${p.power*1}`, `장비 +${equipBonus('atk')}`, `레벨보정 ×${(1+S.level*0.06).toFixed(2)}`]},
+    {icon:'❤️', name:'최대체력', value:S.maxHp, lines:[
+      `기본 ${S.baseHp}`, `강화 +${S.upLvl.hp*12}`, `레벨 +${S.level*2}`, `환생 +${p.power*2}`, `장비 +${equipBonus('hp')}`, `환생배율 ×${(1+p.vitality*0.04).toFixed(2)}`]},
+    {icon:'⚡', name:'공격속도', value:S.spd.toFixed(2)+'/초', lines:[
+      `기본 ${S.baseSpd.toFixed(2)}`, `강화 +${(S.upLvl.spd*0.12).toFixed(2)}`]},
+    {icon:'💰', name:'골드 획득량', value:'+'+goldPct+'%', lines:[
+      `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${Math.round(p.wealth*3)}%`, `장비 +${equipBonus('goldPct')}%`]},
+    {icon:'✨', name:'경험치 획득량', value:'+'+xpPct+'%', lines:[
+      `환생 +${Math.round(p.wisdom*3)}%`, `장비 +${equipBonus('xpPct')}%`]},
+    {icon:'🎯', name:'채집 크리티컬', value:'', lines:[
+      `🪓벌목 ${Math.round(GATHER_SKILLS.woodcutting.critChance*100)}%`,
+      `🎣낚시 ${Math.round(GATHER_SKILLS.fishing.critChance*100)}%`,
+      `⛏️채광 ${Math.round(GATHER_SKILLS.mining.critChance*100)}%`]},
+    {icon:'🔮', name:'환생 강화', value:S.prestige.points.toLocaleString()+'P', lines:
+      PRESTIGE_UPG_DEF.map(u=>`${u.title} Lv.${p[u.key]}`)},
+    {icon:'🛡️', name:'장착 장비', value:'', lines:
+      ['weapon','armor','accessory'].map(slot=>{
+        const key = S.equipment[slot];
+        const item = key ? EQUIPMENT_CATALOG.find(e=>e.key===key) : null;
+        return `${SLOT_NAMES[slot]}: ${item?item.icon+' '+item.name:'없음'}`;
+      })},
+  ];
+  el.innerHTML = cards.map(c=>`
+    <div class="stat-card">
+      <div class="stat-card-head"><span>${c.icon} ${c.name}</span>${c.value?'<span class="stat-card-value">'+c.value+'</span>':''}</div>
+      <div class="stat-card-breakdown">${c.lines.join('<br>')}</div>
+    </div>`).join('');
+}
+
+function renderSidePanel(){
+  const el = document.getElementById('sidePanelSkills');
+  if(!el) return;
+  const zone = currentZone();
+  const rows = [
+    {key:'combat', icon:'⚔️', name:'전투', level:S.level,
+      sub:`⚔️${S.atk} ❤️${S.maxHp} ⚡${S.spd.toFixed(2)}/초`,
+      pct:Math.min(100, S.xp/xpToNext(S.level)*100),
+      extra:`${zone.icon} ${zone.name} ${S.zoneProgress[zone.key].subStage}단계`},
+    {key:'woodcutting', icon:'🪓', name:'벌목', level:S.skills.woodcutting.level,
+      sub:`경험치 ${S.skills.woodcutting.xp}/${skillXpToNext(S.skills.woodcutting.level)}`,
+      pct:Math.min(100, S.skills.woodcutting.xp/skillXpToNext(S.skills.woodcutting.level)*100)},
+    {key:'fishing', icon:'🎣', name:'낚시', level:S.skills.fishing.level,
+      sub:`경험치 ${S.skills.fishing.xp}/${skillXpToNext(S.skills.fishing.level)}`,
+      pct:Math.min(100, S.skills.fishing.xp/skillXpToNext(S.skills.fishing.level)*100)},
+    {key:'mining', icon:'⛏️', name:'채광', level:S.skills.mining.level,
+      sub:`경험치 ${S.skills.mining.xp}/${skillXpToNext(S.skills.mining.level)}`,
+      pct:Math.min(100, S.skills.mining.xp/skillXpToNext(S.skills.mining.level)*100)},
+  ];
+  el.innerHTML = '<div class="side-panel-label">📊 전체 스킬 현황</div>' + rows.map(r=>`
+    <div class="side-skill-card${S.activeMode===r.key?' active':''}" data-goto="${r.key}">
+      <div class="side-skill-head"><span>${r.icon} ${r.name}</span><span>Lv.${r.level}</span></div>
+      <div class="side-skill-sub">${r.sub}${r.extra?'<br>'+r.extra:''}</div>
+      <div class="side-skill-bar-wrap"><div class="side-skill-bar" style="width:${r.pct}%"></div></div>
+    </div>`).join('');
+  el.querySelectorAll('[data-goto]').forEach(card=>{
+    card.onclick = ()=>setMode(card.dataset.goto);
+  });
+}
+
+function gainXp(amount){
+  const mult = 1 + S.prestige.upLvl.wisdom*0.03 + equipBonus('xpPct')/100;
+  S.xp += Math.round(amount * mult);
+  let need = xpToNext(S.level);
+  while(S.xp >= need){
+    S.xp -= need; S.level++;
+    deriveStats(); S.hp = S.maxHp;
+    log('✨ <b>레벨업!</b> Lv.'+S.level+' 달성');
+    need = xpToNext(S.level);
+    renderZones();
+  }
+}
+
+function playerAttack(){
+  if(!enemy) return;
+  enemy.hp -= S.atk;
+  flash(enemyCv);
+  floatDmg(enemyCv, '-'+S.atk, '#ffd76b');
+  renderEnemyHp();
+  if(enemy.hp <= 0){
+    const g = Math.round(enemy.gold*S.goldMult);
+    S.gold += g;
+    gainXp(enemy.xp);
+    log((enemy.isBoss?'👑 <b>보스 '+SPRITES[enemy.type].name+'</b> 처치! ':'<b>'+SPRITES[enemy.type].name+'</b> 처치. ')+'+'+g+'💰 +'+enemy.xp+'xp');
+    enemyCv.classList.add('dead');
+    const killedZoneKey = S.currentZone;
+    setTimeout(()=>{
+      enemyCv.classList.remove('dead');
+      const zp = S.zoneProgress[killedZoneKey];
+      if(enemy && enemy.isBoss){
+        zp.subStage++; zp.killsInZone = 0;
+        log('🚩 '+zoneByKey(killedZoneKey).name+' '+zp.subStage+'단계 진입!');
+      } else {
+        zp.killsInZone++;
+      }
+      if(S.currentZone===killedZoneKey) spawnEnemy();
+      renderStats();
+    },260);
+    renderStats();
+  }
+}
+function enemyAttack(){
+  if(!enemy) return;
+  S.hp -= enemy.atk;
+  flash(heroCv);
+  floatDmg(heroCv, '-'+enemy.atk, '#ff6b8b');
+  if(S.hp <= 0){
+    S.hp = 0;
+    renderHeroHp();
+    triggerGameOver();
+    return;
+  }
+  renderHeroHp();
+}
+const REBIRTH_START_STAGE = 31; // 화산(baseStage 22) 10단계 = 22+10-1
+function rebirthPointsFor(stage){
+  if(stage < REBIRTH_START_STAGE) return 0;
+  return Math.floor((stage-REBIRTH_START_STAGE)/10) + 1;
+}
+let lastRpEarned = 0;
+function triggerGameOver(){
+  if(S.gameOver) return;
+  S.gameOver = true;
+  const effStage = effectiveStage(S.currentZone);
+  lastRpEarned = rebirthPointsFor(effStage);
+  S.prestige.points += lastRpEarned;
+  log(`💀 용사가 쓰러졌습니다... 🔮 환생 포인트 +${lastRpEarned} 획득!`);
+  showGameOverOverlay();
+  save();
+}
+function showGameOverOverlay(){
+  const zone = currentZone();
+  document.getElementById('goStage').textContent = zone.icon+' '+zone.name+' '+S.zoneProgress[zone.key].subStage+'단계';
+  document.getElementById('goLevel').textContent = S.level;
+  document.getElementById('goGold').textContent = Math.floor(S.gold).toLocaleString();
+  document.getElementById('goRP').textContent = lastRpEarned;
+  document.getElementById('goRPTotal').textContent = S.prestige.points;
+  document.getElementById('gameOverOverlay').hidden = false;
+}
+function restartGame(){
+  try{
+    const keepPrestige = S.prestige;
+    localStorage.removeItem(SAVE_KEY);
+    const headstartGold = keepPrestige.upLvl.headstart*80;
+    S = {
+      level:1, xp:0, gold:headstartGold,
+      baseHp:70, baseAtk:6, baseSpd:1.0, goldMult:1,
+      hp:70, maxHp:70,
+      upLvl:{atk:0, hp:0, spd:0, gold:0},
+      potions:{small:0, medium:0, large:0},
+      autoGold: freshAutoGold(),
+      gameOver:false,
+      lastSave:Date.now(),
+      prestige: keepPrestige,
+      currentZone:'forest',
+      zoneProgress: freshZoneProgress(),
+      equipment:{weapon:null, armor:null, accessory:null},
+      ownedGear:{},
+      activeMode:'combat',
+      selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
+      skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
+      inventory:{},
+    };
+    heroCd = 0; lastCombatTick = Date.now(); skillCd = 0;
+    deriveStats(); S.hp = S.maxHp;
+    document.getElementById('gameOverOverlay').hidden = true;
+    document.getElementById('log').innerHTML = '';
+    spawnEnemy();
+    renderAll();
+    save();
+    log(`🔮 환생했습니다! (누적 환생 포인트: ${S.prestige.points})`+(headstartGold>0?` · 시작 골드 +${headstartGold}`:''));
+  }catch(e){
+    console.error('restartGame 오류:', e);
+    alert('환생 중 오류가 발생했습니다: '+e.message);
+  }
+}
+
+/* ========================= 모드 전환 (전투/스킬링/대장간) ========================= */
+const MODES = [
+  {key:'combat', name:'전투', icon:'⚔️'},
+  {key:'woodcutting', name:'벌목', icon:'🪓'},
+  {key:'fishing', name:'낚시', icon:'🎣'},
+  {key:'mining', name:'채광', icon:'⛏️'},
+  {key:'smithing', name:'대장간', icon:'🔨'},
+];
+function setMode(mode){
+  S.activeMode = mode;
+  skillCd = 0;
+  document.getElementById('combatSection').hidden = mode!=='combat';
+  document.getElementById('gatherSection').hidden = !GATHER_SKILLS[mode];
+  document.getElementById('smithingSection').hidden = mode!=='smithing';
+  renderModeTabs();
+  if(GATHER_SKILLS[mode]){ renderSkillPanel(); renderMaterialInventory(); }
+  if(mode==='smithing'){ renderForge(); renderGearInventory(); }
+  renderSidePanel();
+  save();
+}
+function renderModeTabs(){
+  const wrap = document.getElementById('modeTabs');
+  wrap.innerHTML = '';
+  MODES.forEach(m=>{
+    const el = document.createElement('div');
+    el.className = 'mode-tab'+(S.activeMode===m.key?' active':'');
+    el.textContent = m.icon+' '+m.name;
+    el.onclick = ()=>setMode(m.key);
+    wrap.appendChild(el);
+  });
+}
+const GATHER_SKILLS = {
+  woodcutting: {catalog:TREES, selectedKey:'selectedTree', icon:'🪓', critChance:0.15, rareChance:0.03, rareLabel:'새 둥지', rareIcon:'🪺', draw:drawTree, canvasId:'treeCanvas'},
+  fishing:     {catalog:FISH,  selectedKey:'selectedFish',  icon:'🎣', critChance:0.15, rareChance:0.03, rareLabel:'보물상자', rareIcon:'🎁', draw:drawFishSpot, canvasId:'fishCanvas'},
+  mining:      {catalog:ORES,  selectedKey:'selectedOre',   icon:'⛏️', critChance:0.12, rareChance:0.025, rareLabel:'보석',   rareIcon:'💎', draw:drawOreRock, canvasId:'oreCanvas'},
+};
+function gatherItemByKey(skillKey, itemKey){
+  const g = GATHER_SKILLS[skillKey];
+  return g.catalog.find(t=>t.key===itemKey) || g.catalog[0];
+}
+function currentGatherItem(skillKey){ return gatherItemByKey(skillKey, S[GATHER_SKILLS[skillKey].selectedKey]); }
+function selectGatherItem(skillKey, itemKey){
+  const g = GATHER_SKILLS[skillKey];
+  const item = gatherItemByKey(skillKey, itemKey);
+  if(S.skills[skillKey].level < item.level) return;
+  S[g.selectedKey] = itemKey;
+  renderSkillPanel(); save();
+}
+function doGatherAction(skillKey){
+  const g = GATHER_SKILLS[skillKey];
+  const item = currentGatherItem(skillKey);
+  const sk = S.skills[skillKey];
+  let qty = 1, critMsg = '';
+  if(Math.random() < g.critChance){ qty = 2; critMsg = ' 🌟크리티컬!'; }
+  S.inventory[item.itemKey] = (S.inventory[item.itemKey]||0)+qty;
+  sk.xp += item.xp;
+  let need = skillXpToNext(sk.level);
+  let leveledUp = false;
+  while(sk.xp >= need){
+    sk.xp -= need; sk.level++; leveledUp = true;
+    log(`✨ ${g.icon} <b>${SKILL_NAMES[skillKey]} 레벨업!</b> Lv.${sk.level}`);
+    need = skillXpToNext(sk.level);
+  }
+  log(`${g.icon} ${item.icon} ${item.itemName} +${qty}${critMsg} (경험치 +${item.xp})`);
+  if(Math.random() < g.rareChance){
+    const bonus = Math.round(10*Math.pow(1.6, g.catalog.indexOf(item)));
+    S.gold += bonus;
+    log(`${g.rareIcon} <b>${g.rareLabel}</b> 발견! +${bonus}💰`);
+    renderStats();
+  }
+  const cv = document.getElementById(g.canvasId);
+  if(cv){ flash(cv); g.draw(cv.getContext('2d'), item.key, true); }
+  renderSkillPanel(); renderInventory(); renderSidePanel(); save();
+  if(leveledUp) renderSkillPanel();
+}
+function renderGatherPanel(skillKey){
+  const g = GATHER_SKILLS[skillKey];
+  const panel = document.getElementById('skillPanel');
+  const sk = S.skills[skillKey];
+  const item = currentGatherItem(skillKey);
+  const need = skillXpToNext(sk.level);
+  const pct = Math.max(0, Math.min(100, 100 - (skillCd/item.actionMs*100)));
+  const cards = g.catalog.map(t=>{
+    const locked = sk.level < t.level;
+    const active = S[g.selectedKey]===t.key;
+    return `<div class="zone-card"${locked?' style="opacity:.4;cursor:not-allowed;"':''}${active?' style="border-color:#5ad46a;background:#16241c;"':''}
+      data-gather="${t.key}">
+      <div class="zone-title">${t.icon} ${t.name}</div>
+      <div class="zone-desc">${locked? '🔒 Lv.'+t.level+' 필요' : '💰'+t.sellPrice+' · xp'+t.xp}</div>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `
+    <canvas id="${g.canvasId}" class="sprite" width="32" height="32" style="width:96px;height:96px;"></canvas>
+    <div class="skill-title">${g.icon} ${SKILL_NAMES[skillKey]} Lv.${sk.level} <span class="muted-label">- ${item.name} 채집중</span></div>
+    <div class="skill-sub">보유 ${item.itemName} ${S.inventory[item.itemKey]||0}개 · 경험치 ${sk.xp}/${need}</div>
+    <div class="skill-progress-wrap"><div class="skill-progress" style="width:${pct}%"></div></div>
+    <div class="skill-sub">크리티컬 확률 ${Math.round(g.critChance*100)}% · ${g.rareLabel} 확률 ${Math.round(g.rareChance*100)}%</div>
+    <div class="zone-list" style="width:100%;margin-top:6px;">${cards}</div>`;
+  panel.querySelectorAll('[data-gather]').forEach(el=>{
+    el.style.cursor = 'pointer';
+    el.onclick = ()=>selectGatherItem(skillKey, el.dataset.gather);
+  });
+  const cv = document.getElementById(g.canvasId);
+  if(cv){ cv.getContext('2d').imageSmoothingEnabled=false; g.draw(cv.getContext('2d'), item.key, false); }
+}
+function renderSkillPanel(){
+  const panel = document.getElementById('skillPanel');
+  if(S.activeMode==='combat'){ panel.innerHTML=''; return; }
+  renderGatherPanel(S.activeMode);
+}
+
+/* ========================= 사냥터 렌더 ========================= */
+function selectZone(key){
+  const zone = zoneByKey(key);
+  if(S.level < zone.unlockLevel) return;
+  if(S.activeMode !== 'combat') setMode('combat');
+  if(S.currentZone === key) return;
+  S.currentZone = key;
+  spawnEnemy();
+  renderZones();
+  save();
+}
+function renderZones(){
+  const list = document.getElementById('zoneList');
+  list.innerHTML = '';
+  ZONES.forEach(zone=>{
+    const locked = S.level < zone.unlockLevel;
+    const active = S.currentZone===zone.key;
+    const card = document.createElement('div');
+    card.className = 'zone-card'+(locked?' locked':'')+(active?' active':'');
+    const zp = S.zoneProgress[zone.key];
+    card.innerHTML = `<div class="zone-title">${zone.icon} ${zone.name}</div>
+      <div class="zone-desc">${locked? '🔒 Lv.'+zone.unlockLevel+' 필요' : zp.subStage+'단계 진행중'}</div>`;
+    if(!locked) card.onclick = ()=>selectZone(zone.key);
+    list.appendChild(card);
+  });
+}
+
+/* ========================= 상점 ========================= */
+const UPG_DEF = [
+  {key:'atk', icon:'⚔️', title:'공격력', desc:'몬스터에게 주는 피해 +2'},
+  {key:'hp', icon:'❤️', title:'최대체력', desc:'최대 체력 +12'},
+  {key:'spd', icon:'⚡', title:'공격속도', desc:'초당 공격 횟수 +0.12'},
+  {key:'gold', icon:'💰', title:'골드획득', desc:'처치 보상 골드 +0.1%'},
+];
+function renderShop(){
+  const shop = document.getElementById('shop');
+  shop.innerHTML='';
+  UPG_DEF.forEach(u=>{
+    const lvl = S.upLvl[u.key];
+    const cost = upgradeCost(u.key, lvl);
+    const afford = S.gold >= cost;
+    const card = document.createElement('div');
+    card.className='upg'+(afford?'':' disabled');
+    card.innerHTML = `<div class="upg-head"><span>${u.icon} ${u.title} Lv.${lvl}</span></div>
+      <div class="upg-desc">${u.desc}</div>
+      <div class="upg-cost">💰 ${cost.toLocaleString()}</div>`;
+    card.onclick = ()=>{
+      if(S.gold < cost) return;
+      S.gold -= cost; S.upLvl[u.key]++;
+      deriveStats(); renderStats(); renderShop(); save();
+    };
+    shop.appendChild(card);
+  });
+}
+
+/* ========================= 대장간 (광물 + 골드로 장비 제작) / 인벤토리 ========================= */
+const FORGE_RECIPES = {
+  wpn1:{oreKey:'ore_copper',  oreQty:5,  goldCost:50},
+  wpn2:{oreKey:'ore_iron',    oreQty:8,  goldCost:400},
+  wpn3:{oreKey:'ore_mithril', oreQty:12, goldCost:2000},
+  wpn4:{oreKey:'ore_dragon',  oreQty:20, goldCost:9000},
+  arm1:{oreKey:'ore_copper',  oreQty:6,  goldCost:50},
+  arm2:{oreKey:'ore_iron',    oreQty:10, goldCost:400},
+  arm3:{oreKey:'ore_mithril', oreQty:15, goldCost:2000},
+  arm4:{oreKey:'ore_dragon',  oreQty:25, goldCost:9000},
+  acc1:{oreKey:'ore_silver',  oreQty:8,  goldCost:150},
+  acc2:{oreKey:'ore_gold',    oreQty:10, goldCost:800},
+  acc3:{oreKey:'ore_rune',    oreQty:15, goldCost:3000},
+};
+function craftGear(key){
+  const item = EQUIPMENT_CATALOG.find(e=>e.key===key);
+  const recipe = FORGE_RECIPES[key];
+  if(!item || !recipe || S.ownedGear[key]) return;
+  const haveOre = S.inventory[recipe.oreKey]||0;
+  if(haveOre < recipe.oreQty || S.gold < recipe.goldCost) return;
+  S.inventory[recipe.oreKey] -= recipe.oreQty;
+  S.gold -= recipe.goldCost;
+  S.ownedGear[key] = true;
+  if(!S.equipment[item.slot]) S.equipment[item.slot] = key;
+  deriveStats(); renderStats(); renderForge(); renderGearInventory(); save();
+  log(`🔨 <b>${item.name}</b> 제작 완료!`);
+}
+function equipGear(key){
+  const item = EQUIPMENT_CATALOG.find(e=>e.key===key);
+  if(!item || !S.ownedGear[key]) return;
+  S.equipment[item.slot] = key;
+  deriveStats(); renderStats(); renderInventory(); save();
+}
+function renderForge(){
+  const list = document.getElementById('forgeList');
+  if(!list) return;
+  list.innerHTML='';
+  EQUIPMENT_CATALOG.forEach(item=>{
+    const recipe = FORGE_RECIPES[item.key];
+    if(!recipe) return;
+    const owned = !!S.ownedGear[item.key];
+    const haveOre = S.inventory[recipe.oreKey]||0;
+    const oreItem = ORES.find(o=>o.itemKey===recipe.oreKey);
+    const afford = haveOre>=recipe.oreQty && S.gold>=recipe.goldCost;
+    const statText = ['atk','hp','goldPct','xpPct'].filter(k=>item[k])
+      .map(k=>({atk:'공격력',hp:'체력',goldPct:'골드%',xpPct:'경험치%'}[k]+' +'+item[k]+(k.includes('Pct')?'%':'')))
+      .join(', ');
+    const card = document.createElement('div');
+    card.className='upg'+(owned?' owned':(afford?'':' disabled'));
+    card.innerHTML = `<div class="upg-head"><span>${item.icon} ${item.name}</span></div>
+      <div class="upg-desc">[${SLOT_NAMES[item.slot]}] ${statText}</div>
+      <div class="upg-desc">${oreItem.icon} ${oreItem.itemName} ${haveOre}/${recipe.oreQty} · 💰${recipe.goldCost.toLocaleString()}</div>
+      <div class="upg-cost">${owned?'✅ 보유중':'🔨 제작하기'}</div>`;
+    if(!owned) card.onclick = ()=>craftGear(item.key);
+    list.appendChild(card);
+  });
+}
+function sellMaterial(key, qty){
+  const have = S.inventory[key]||0;
+  const n = Math.min(have, qty);
+  if(n<=0) return;
+  S.inventory[key] -= n;
+  const earn = n*materialSellPrice(key);
+  S.gold += earn;
+  log(`💰 재료 판매 +${earn}`);
+  renderStats(); renderInventory(); save();
+}
+function skillForItemKey(key){
+  if(TREES.find(t=>t.itemKey===key)) return 'woodcutting';
+  if(FISH.find(t=>t.itemKey===key)) return 'fishing';
+  if(ORES.find(t=>t.itemKey===key)) return 'mining';
+  return null;
+}
+function renderGearInventory(){
+  const summary = document.getElementById('equipSummary');
+  summary.innerHTML = ['weapon','armor','accessory'].map(slot=>{
+    const key = S.equipment[slot];
+    const item = key ? EQUIPMENT_CATALOG.find(e=>e.key===key) : null;
+    return `<span>${SLOT_NAMES[slot]}: <b>${item? item.icon+' '+item.name : '없음'}</b></span>`;
+  }).join('');
+
+  const list = document.getElementById('gearInvList');
+  if(!list) return;
+  list.innerHTML = '';
+  Object.keys(S.ownedGear).forEach(key=>{
+    const item = EQUIPMENT_CATALOG.find(e=>e.key===key);
+    if(!item) return;
+    const equipped = S.equipment[item.slot]===key;
+    const el = document.createElement('div');
+    el.className='inv-item';
+    el.innerHTML = `<div class="inv-name">${item.icon} ${item.name}</div><div>[${SLOT_NAMES[item.slot]}]</div>
+      <button ${equipped?'disabled':''}>${equipped?'장착중':'장착'}</button>`;
+    if(!equipped) el.querySelector('button').onclick = ()=>equipGear(key);
+    list.appendChild(el);
+  });
+}
+function renderMaterialInventory(){
+  const list = document.getElementById('materialInvList');
+  if(!list) return;
+  list.innerHTML = '';
+  const skillKey = S.activeMode;
+  const materialKeys = Object.keys(S.inventory).filter(k=>S.inventory[k]>0 && skillForItemKey(k)===skillKey);
+  if(materialKeys.length===0){
+    list.innerHTML = '<div class="muted-label">아직 채집한 재료가 없어요.</div>';
+    return;
+  }
+  materialKeys.forEach(key=>{
+    const qty = S.inventory[key]||0;
+    const el = document.createElement('div');
+    el.className='inv-item';
+    el.innerHTML = `<div class="inv-name">${materialDisplayName(key)}</div><div>보유 ${qty}개 · 개당 💰${materialSellPrice(key)}</div>
+      <button ${qty<=0?'disabled':''}>전부 판매</button>`;
+    el.querySelector('button').onclick = ()=>sellMaterial(key, qty);
+    list.appendChild(el);
+  });
+}
+function renderInventory(){ renderGearInventory(); renderMaterialInventory(); }
+
+/* ========================= 자발적 환생 (죽지 않아도 원할 때 바로 환생) ========================= */
+function voluntaryRebirth(){
+  if(S.gameOver) return;
+  const zone = currentZone();
+  const zp = S.zoneProgress[zone.key];
+  const effStage = effectiveStage(zone.key);
+  const rp = rebirthPointsFor(effStage);
+  const ok = confirm(`지금 환생하면 현재 진행(레벨 ${S.level}, ${zone.icon} ${zone.name} ${zp.subStage}단계)이 초기화되고\n🔮 환생 포인트 +${rp}을 얻습니다.\n\n환생하시겠습니까?`);
+  if(!ok) return;
+  lastRpEarned = rp;
+  S.prestige.points += rp;
+  log(`🔮 스스로 환생했습니다! 환생 포인트 +${rp} (누적 ${S.prestige.points})`);
+  restartGame();
+}
+function renderRebirthNowCard(){
+  const el = document.getElementById('rebirthNowCard');
+  if(!el) return;
+  const zone = currentZone();
+  const zp = S.zoneProgress[zone.key];
+  const effStage = effectiveStage(zone.key);
+  const rp = rebirthPointsFor(effStage);
+  el.innerHTML = `<div><div class="ag-title">🔮 지금 환생하기</div>
+    <div class="ag-desc">${zone.icon} ${zone.name} ${zp.subStage}단계 · 지금 환생하면 <b>+${rp}</b> 포인트 획득 (현재 보유 ${S.prestige.points.toLocaleString()})</div></div>
+    <button id="voluntaryRebirthBtn" ${S.gameOver||rp<=0?'disabled':''}>🔮 환생하기</button>`;
+  const btn = document.getElementById('voluntaryRebirthBtn');
+  if(btn) btn.onclick = voluntaryRebirth;
+}
+
+/* ========================= 환생 상점 (영구 강화, 환생해도 유지) ========================= */
+function renderPrestigeShop(){
+  const shop = document.getElementById('prestigeShop');
+  shop.innerHTML='';
+  PRESTIGE_UPG_DEF.forEach(u=>{
+    const lvl = S.prestige.upLvl[u.key];
+    const cost = prestigeCost(u.key, lvl);
+    const afford = S.prestige.points >= cost;
+    const card = document.createElement('div');
+    card.className='upg'+(afford?'':' disabled');
+    card.innerHTML = `<div class="upg-head"><span>${u.icon} ${u.title} Lv.${lvl}</span></div>
+      <div class="upg-desc">${u.desc}</div>
+      <div class="upg-cost">🔮 ${cost.toLocaleString()}</div>`;
+    card.onclick = ()=>{
+      if(S.prestige.points < cost) return;
+      S.prestige.points -= cost; S.prestige.upLvl[u.key]++;
+      deriveStats(); renderStats(); renderPrestigeShop(); save();
+    };
+    shop.appendChild(card);
+  });
+}
+
+/* ========================= 물약 상점 / 인벤토리 ========================= */
+const POTION_DEF = [
+  {key:'small', icon:'🧪', title:'소형 물약', desc:'체력 25% 회복', pct:0.25, base:15},
+  {key:'medium', icon:'⚗️', title:'중형 물약', desc:'체력 50% 회복', pct:0.5, base:45},
+  {key:'large', icon:'🍶', title:'대형 물약', desc:'체력 100% 회복', pct:1.0, base:120},
+];
+function potionCost(def){ return Math.round(def.base*Math.pow(1.09, S.level-1)); }
+function renderPotionShop(){
+  const shop = document.getElementById('potionShop');
+  shop.innerHTML='';
+  POTION_DEF.forEach(p=>{
+    const cost = potionCost(p);
+    const afford = S.gold >= cost;
+    const card = document.createElement('div');
+    card.className='upg'+(afford?'':' disabled');
+    card.innerHTML = `<div class="upg-head"><span>${p.icon} ${p.title}</span></div>
+      <div class="upg-desc">${p.desc}</div>
+      <div class="upg-cost">💰 ${cost.toLocaleString()}</div>`;
+    card.onclick = ()=>{
+      if(S.gold < cost) return;
+      S.gold -= cost; S.potions[p.key]++;
+      renderStats(); renderPotionShop(); renderPotionBar(); save();
+    };
+    shop.appendChild(card);
+  });
+}
+function usePotion(key){
+  if(S.gameOver) return;
+  if(S.potions[key] <= 0) return;
+  const def = POTION_DEF.find(p=>p.key===key);
+  if(S.hp >= S.maxHp){ log('체력이 이미 가득 찼습니다.'); return; }
+  S.potions[key]--;
+  const heal = Math.round(S.maxHp*def.pct);
+  S.hp = Math.min(S.maxHp, S.hp+heal);
+  log(`🧪 <b>${def.title}</b> 사용! 체력 +${heal}`);
+  renderHeroHp(); renderPotionBar(); save();
+}
+function renderPotionBar(){
+  const bar = document.getElementById('potionBar');
+  bar.innerHTML='';
+  POTION_DEF.forEach(p=>{
+    const count = S.potions[p.key]||0;
+    const item = document.createElement('div');
+    item.className='potion-item';
+    item.innerHTML = `<span>${p.icon} ${p.title}</span><span class="p-count">x${count}</span>
+      <button ${count<=0||S.gameOver?'disabled':''}>사용</button>`;
+    item.querySelector('button').onclick = ()=>usePotion(p.key);
+    bar.appendChild(item);
+  });
+}
+
+/* ========================= 자동 수금 (여러 금고, 주기가 길어질수록 보상도 커짐) ========================= */
+function fmtMMSS(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), r = s%60;
+  return h>0 ? String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(r).padStart(2,'0')
+             : String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
+}
+function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult); }
+function unlockAutoGold(tierKey){
+  const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
+  const st = S.autoGold[tierKey];
+  if(S.gameOver || !tier || st.unlocked) return;
+  if(S.gold < tier.cost) return;
+  S.gold -= tier.cost;
+  st.unlocked = true;
+  st.readyAt = Date.now()+tier.cycleMs;
+  log(`⏳ <b>${tier.title}</b>를 해금했습니다! ${fmtMMSS(tier.cycleMs)}마다 골드가 쌓여요.`);
+  renderStats(); renderAutoGold(); save();
+}
+function collectAutoGold(tierKey){
+  const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
+  const st = S.autoGold[tierKey];
+  if(!tier || !st.unlocked) return;
+  if(Date.now() < st.readyAt) return;
+  const reward = autoGoldReward(tier);
+  S.gold += reward;
+  st.readyAt = Date.now()+tier.cycleMs;
+  log(`${tier.icon} ${tier.title} +${reward.toLocaleString()}💰`);
+  renderStats(); renderAutoGold(); save();
+}
+function autoClaimCost(tier){ return tier.cost*4; }
+function unlockAutoClaim(tierKey){
+  const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
+  const st = S.autoGold[tierKey];
+  if(!tier || !st.unlocked || st.autoClaim) return;
+  const cost = autoClaimCost(tier);
+  if(S.gold < cost) return;
+  S.gold -= cost;
+  st.autoClaim = true;
+  log(`🤖 <b>${tier.title}</b> 자동화 완료! 이제 알아서 수금돼요.`);
+  renderStats(); renderAutoGold(); save();
+}
+function autoCollectTick(){
+  let any = false;
+  AUTO_GOLD_TIERS.forEach(tier=>{
+    const st = S.autoGold[tier.key];
+    if(st.unlocked && st.autoClaim && Date.now() >= st.readyAt){ collectAutoGold(tier.key); any = true; }
+  });
+  if(any) renderAutoGold();
+}
+function renderAutoGold(){
+  const list = document.getElementById('autoGoldList');
+  list.innerHTML = '';
+  AUTO_GOLD_TIERS.forEach(tier=>{
+    const st = S.autoGold[tier.key];
+    const reward = autoGoldReward(tier);
+    const ratePerSec = reward/(tier.cycleMs/1000);
+    const rateText = `⚡ 초당 ${ratePerSec>=10?Math.round(ratePerSec):ratePerSec.toFixed(1)}💰`;
+    const el = document.createElement('div');
+    el.className = 'autogold-card';
+    if(!st.unlocked){
+      const afford = S.gold >= tier.cost;
+      el.innerHTML = `<div class="ag-title">${tier.icon} ${tier.title}</div>
+        <div class="ag-desc">${fmtMMSS(tier.cycleMs)}마다 골드 획득</div>
+        <div class="ag-rate">${rateText}</div>
+        <button class="agBtn" ${afford?'':'disabled'}>🔓 💰${tier.cost.toLocaleString()}</button>`;
+      el.querySelector('.agBtn').onclick = ()=>unlockAutoGold(tier.key);
+    } else if(st.autoClaim){
+      el.innerHTML = `<div class="ag-title">${tier.icon} ${tier.title}</div>
+        <div class="ag-desc">🤖 자동 수집 중</div>
+        <div class="ag-rate">${rateText}</div>`;
+    } else {
+      const remain = st.readyAt - Date.now();
+      const ready = remain <= 0;
+      const autoCost = autoClaimCost(tier);
+      const affordAuto = S.gold >= autoCost;
+      el.innerHTML = `<div class="ag-title">${tier.icon} ${tier.title}</div>
+        <div class="ag-desc">${ready ? '수금 준비 완료!' : fmtMMSS(remain)+' 남음'}</div>
+        <div class="ag-rate">${rateText}</div>
+        <button class="agBtn ${ready?'ready':''}" ${ready?'':'disabled'}>${ready ? '💰 '+reward.toLocaleString()+' 받기' : '대기 중'}</button>
+        <button class="agBtn-auto" ${affordAuto?'':'disabled'}>🤖 💰${autoCost.toLocaleString()}</button>`;
+      if(ready) el.querySelector('.agBtn').onclick = ()=>collectAutoGold(tier.key);
+      el.querySelector('.agBtn-auto').onclick = ()=>unlockAutoClaim(tier.key);
+    }
+    list.appendChild(el);
+  });
+}
+
+/* ========================= 저장 / 불러오기 / 오프라인 보상 ========================= */
+function save(){ S.lastSave = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    Object.assign(S, data);
+    return true;
+  }catch{ return false; }
+}
+function offlineRewards(){
+  if(S.gameOver) return;
+  const elapsedMs = Math.min(Date.now()-S.lastSave, 4*3600*1000);
+  const seconds = elapsedMs/1000;
+  if(seconds < 30) return;
+  deriveStats();
+  const stage = effectiveStage(S.currentZone);
+  const avgEnemyHp = 15*Math.pow(1.16, stage-1)*1.3;
+  const dps = S.atk*S.spd;
+  const killsPerSec = dps / Math.max(avgEnemyHp,1) * 0.5;
+  const goldPerKill = 2*Math.pow(1.16, stage-1)*S.goldMult;
+  const xpPerKill = 1.5*Math.pow(1.16, stage-1);
+  const kills = killsPerSec*seconds;
+  const gained = Math.round(kills*goldPerKill);
+  const xpGained = Math.round(kills*xpPerKill);
+  S.gold += gained;
+  gainXp(xpGained);
+  const mins = Math.floor(seconds/60);
+  showToast(`🕒 오프라인 ${mins}분 동안<br><b>💰 ${gained.toLocaleString()}골드</b> · <b>${xpGained}xp</b> 획득!`);
+}
+function showToast(html){
+  const t = document.createElement('div');
+  t.className='toast'; t.innerHTML=html;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 3200);
+}
+
+/* ========================= 메인 루프 =========================
+   로직은 setInterval로 돌려 탭이 백그라운드여도 계속 진행됩니다.
+   그리기는 requestAnimationFrame으로 분리(탭이 안 보이면 자동 절전, 정상). */
+let heroCd=0, lastCombatTick=Date.now(), animT=0, skillCd=0;
+function combatTick(){
+  const now = Date.now();
+  const dt = now-lastCombatTick; lastCombatTick = now;
+  if(S.gameOver) return;
+  if(S.activeMode==='combat'){
+    heroCd -= dt;
+    if(enemy){ enemy.atkCd -= dt; }
+    if(heroCd<=0 && enemy){ playerAttack(); heroCd = 1000/S.spd; }
+    if(enemy && enemy.atkCd<=0){ enemyAttack(); enemy.atkCd = 2000 + Math.random()*700; }
+  } else if(GATHER_SKILLS[S.activeMode]){
+    skillCd -= dt;
+    if(skillCd<=0){ doGatherAction(S.activeMode); skillCd = currentGatherItem(S.activeMode).actionMs; }
+  }
+}
+function drawLoop(now){
+  animT = now;
+  drawHero(heroCtx);
+  if(enemy){
+    const sp = SPRITES[enemy.type];
+    sp.draw(enemyCtx, sp.animated? animT : undefined);
+  }
+  requestAnimationFrame(drawLoop);
+}
+
+/* ========================= 초기화 ========================= */
+function renderAll(){
+  renderStats(); renderModeTabs(); renderZones(); renderShop(); renderPotionShop(); renderPotionBar();
+  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory();
+  document.getElementById('combatSection').hidden = S.activeMode!=='combat';
+  document.getElementById('gatherSection').hidden = !GATHER_SKILLS[S.activeMode];
+  document.getElementById('smithingSection').hidden = S.activeMode!=='smithing';
+  if(GATHER_SKILLS[S.activeMode]) renderSkillPanel();
+}
+function init(){
+  const hadSave = load();
+  if(!S.potions) S.potions = {small:0, medium:0, large:0};
+  else ['small','medium','large'].forEach(k=>{ if(!S.potions[k]) S.potions[k]=0; });
+  if(!S.autoGold || !AUTO_GOLD_TIERS.every(t=>S.autoGold[t.key])){
+    S.autoGold = freshAutoGold();
+  } else {
+    AUTO_GOLD_TIERS.forEach(t=>{ if(typeof S.autoGold[t.key].autoClaim !== 'boolean') S.autoGold[t.key].autoClaim = false; });
+    delete S.autoGold.autoClaim;
+  }
+  if(!S.prestige) S.prestige = {points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0}};
+  else PRESTIGE_UPG_DEF.forEach(u=>{ if(!S.prestige.upLvl[u.key]) S.prestige.upLvl[u.key]=0; });
+  if(!S.currentZone || !S.zoneProgress){
+    S.currentZone = 'forest';
+    S.zoneProgress = freshZoneProgress();
+  } else {
+    // 새로 추가된 사냥터만 채워 넣고, 기존 진행상황은 보존
+    ZONES.forEach(z=>{ if(!S.zoneProgress[z.key]) S.zoneProgress[z.key] = {killsInZone:0, subStage:1}; });
+  }
+  if(!S.equipment) S.equipment = {weapon:null, armor:null, accessory:null};
+  if(!S.ownedGear) S.ownedGear = {};
+  if(!S.skills) S.skills = { woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} };
+  if(!S.inventory) S.inventory = {};
+  else {
+    if(S.inventory.logs){ S.inventory.log_normal = (S.inventory.log_normal||0)+S.inventory.logs; delete S.inventory.logs; }
+    if(S.inventory.fish){ S.inventory.fish_shrimp = (S.inventory.fish_shrimp||0)+S.inventory.fish; delete S.inventory.fish; }
+    if(S.inventory.ore){ S.inventory.ore_copper = (S.inventory.ore_copper||0)+S.inventory.ore; delete S.inventory.ore; }
+  }
+  if(!S.activeMode) S.activeMode = 'combat';
+  if(!S.selectedTree) S.selectedTree = 'normal';
+  if(!S.selectedFish) S.selectedFish = 'shrimp';
+  if(!S.selectedOre) S.selectedOre = 'copper';
+  deriveStats();
+  if(!S.gameOver && (S.hp<=0 || S.hp>S.maxHp)) S.hp = S.maxHp;
+  spawnEnemy();
+  renderAll();
+  if(hadSave && !S.gameOver) offlineRewards();
+  renderAll();
+  if(S.gameOver) showGameOverOverlay();
+  document.getElementById('goRestart').addEventListener('click', restartGame);
+  requestAnimationFrame(drawLoop);
+  setInterval(combatTick, 100);
+  setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); if(S.activeMode!=='combat') renderSkillPanel(); }, 1000);
+  setInterval(save, 5000);
+  window.addEventListener('beforeunload', save);
+  if(!hadSave) log('게임을 시작합니다. 자동으로 전투가 진행돼요.');
+}
+init();
+</script>
+</body></html>

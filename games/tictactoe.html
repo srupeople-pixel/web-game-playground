@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>틱택토</title>
+<style>
+  html,body{margin:0;height:100%;background:#0f1220;color:#e8eaf5;font-family:system-ui,"Malgun Gothic",sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;user-select:none;}
+  #status{font-size:20px;font-weight:700;height:26px;}
+  #board{display:grid;grid-template-columns:repeat(3,90px);grid-gap:8px;background:#161a2c;padding:8px;border-radius:14px;
+    box-shadow:0 8px 30px rgba(0,0,0,.4);}
+  .sq{width:90px;height:90px;border-radius:10px;background:#1c2138;display:flex;align-items:center;justify-content:center;
+    font-size:44px;font-weight:800;cursor:pointer;transition:.12s;}
+  .sq:hover{background:#242a48;}
+  .sq.x{color:#6c8cff;}.sq.o{color:#ff6b8b;}.sq.win{background:#2b3560;}
+  button{background:#1c2138;border:1px solid #2a3050;color:#e8eaf5;padding:9px 16px;border-radius:10px;cursor:pointer;font-size:14px;}
+  .hint{color:#9aa0c0;font-size:13px;}
+</style></head><body>
+<div id="status">당신 차례 (X)</div>
+<div id="board"></div>
+<button id="restart">새 게임</button>
+<div class="hint">당신은 X, 컴퓨터는 O 입니다</div>
+<script>
+const WINS=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let bd,over,board=document.getElementById('board'),status=document.getElementById('status');
+function init(){bd=Array(9).fill('');over=false;status.textContent='당신 차례 (X)';board.innerHTML='';
+  bd.forEach((_,i)=>{const s=document.createElement('div');s.className='sq';s.dataset.i=i;
+    s.onclick=()=>play(i);board.appendChild(s);});}
+function winner(b){for(const w of WINS){const[a,c,d]=w;if(b[a]&&b[a]===b[c]&&b[a]===b[d])return{p:b[a],w};}
+  return b.every(v=>v)?{p:'draw'}:null;}
+function render(){[...board.children].forEach((s,i)=>{s.textContent=bd[i];s.className='sq'+(bd[i]?' '+bd[i].toLowerCase():'');});}
+function play(i){if(over||bd[i])return;bd[i]='X';render();if(end())return;
+  status.textContent='컴퓨터 차례…';setTimeout(cpu,350);}
+function cpu(){const i=best();bd[i]='O';render();if(!end())status.textContent='당신 차례 (X)';}
+function end(){const r=winner(bd);if(!r)return false;over=true;
+  if(r.p==='draw')status.textContent='무승부!';
+  else{status.textContent=(r.p==='X'?'🎉 당신 승리!':'컴퓨터 승리…');
+    if(r.w)r.w.forEach(x=>board.children[x].classList.add('win'));}return true;}
+function best(){let bestScore=-Infinity,mv=0;
+  bd.forEach((v,i)=>{if(!v){bd[i]='O';const sc=mini(bd,0,false);bd[i]='';if(sc>bestScore){bestScore=sc;mv=i;}}});return mv;}
+function mini(b,d,isMax){const r=winner(b);if(r){if(r.p==='O')return 10-d;if(r.p==='X')return d-10;return 0;}
+  let best=isMax?-Infinity:Infinity;
+  b.forEach((v,i)=>{if(!v){b[i]=isMax?'O':'X';const sc=mini(b,d+1,!isMax);b[i]='';
+    best=isMax?Math.max(best,sc):Math.min(best,sc);}});return best;}
+document.getElementById('restart').onclick=init;
+init();
+</script></body></html>
