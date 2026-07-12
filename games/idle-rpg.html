@@ -620,7 +620,7 @@ let S = {
   level:1, xp:0, gold:0,
   baseHp:70, baseAtk:6, baseSpd:1.0, goldMult:1,
   hp:70, maxHp:70,
-  upLvl:{atk:0, hp:0, spd:0, gold:0},
+  upLvl:{atk:0, hp:0, spd:0, gold:0, regen:0},
   potions:{small:0, medium:0, large:0},
   autoGold:{
     t1:{unlocked:false,readyAt:0,autoClaim:false}, t2:{unlocked:false,readyAt:0,autoClaim:false},
@@ -745,10 +745,11 @@ function deriveStats(){
   S.atk = Math.round((S.baseAtk + S.upLvl.atk*2 + p.power*1 + equipBonus('atk')) * (1+S.level*0.06));
   S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
   S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.005) * (1 + equipBonus('goldPct')/100);
+  S.regenPct = S.upLvl.regen*0.002; // 레벨당 초당 최대체력의 0.2%
 }
 function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
 function upgradeCost(key, lvl){
-  const base = {atk:15, hp:15, spd:40, gold:30}[key];
+  const base = {atk:15, hp:15, spd:40, gold:30, regen:60}[key];
   return Math.round(base*Math.pow(1.16, lvl));
 }
 
@@ -828,6 +829,8 @@ function renderStatSheet(){
       `기본 ${S.baseHp}`, `강화 +${S.upLvl.hp*12}`, `레벨 +${S.level*2}`, `환생 +${p.power*1}`, `장비 +${equipBonus('hp')}`, `환생배율 ×${(1+p.vitality*0.02).toFixed(2)}`]},
     {icon:'⚡', name:'공격속도', value:S.spd.toFixed(2)+'/초', lines:[
       `기본 ${S.baseSpd.toFixed(2)}`, `강화 +${(S.upLvl.spd*0.12).toFixed(2)}`]},
+    {icon:'💗', name:'재생력', value:(S.regenPct*100).toFixed(1)+'%/초', lines:[
+      `강화 Lv.${S.upLvl.regen} (레벨당 +0.2%)`]},
     {icon:'💰', name:'골드 획득량', value:'+'+goldPct+'%', lines:[
       `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${(p.wealth*0.5).toFixed(1)}%`, `장비 +${equipBonus('goldPct')}%`]},
     {icon:'✨', name:'경험치 획득량', value:'+'+xpPct+'%', lines:[
@@ -977,7 +980,7 @@ function restartGame(){
       level:1, xp:0, gold:headstartGold,
       baseHp:70, baseAtk:6, baseSpd:1.0, goldMult:1,
       hp:70, maxHp:70,
-      upLvl:{atk:0, hp:0, spd:0, gold:0},
+      upLvl:{atk:0, hp:0, spd:0, gold:0, regen:0},
       potions:{small:0, medium:0, large:0},
       autoGold: freshAutoGold(),
       gameOver:false,
@@ -1191,6 +1194,7 @@ const UPG_DEF = [
   {key:'hp', icon:'❤️', title:'최대체력', desc:'최대 체력 +12'},
   {key:'spd', icon:'⚡', title:'공격속도', desc:'초당 공격 횟수 +0.12'},
   {key:'gold', icon:'💰', title:'골드획득', desc:'처치 보상 골드 +0.1%'},
+  {key:'regen', icon:'💗', title:'재생력', desc:'초당 최대체력의 +0.2% 자동 회복'},
 ];
 function renderShop(){
   const shop = document.getElementById('shop');
@@ -1673,6 +1677,12 @@ function combatTick(){
   const dt = now-lastCombatTick; lastCombatTick = now;
   if(S.gameOver) return;
 
+  // 재생력 강화를 샀다면 초당 최대체력 비례로 서서히 회복 (물약과 별개, 약하게)
+  if(S.regenPct>0 && S.hp>0 && S.hp<S.maxHp){
+    S.hp = Math.min(S.maxHp, S.hp + S.maxHp*S.regenPct*(dt/1000));
+    renderHeroHp();
+  }
+
   // 전투와 채집 3종은 서로 화면 전환과 무관하게 각자 독립적으로 동시에 진행됩니다.
   if(S.combatActive){
     heroCd -= dt;
@@ -1712,6 +1722,8 @@ function renderAll(){
 }
 function init(){
   const hadSave = load();
+  if(!S.upLvl) S.upLvl = {atk:0, hp:0, spd:0, gold:0, regen:0};
+  else if(typeof S.upLvl.regen !== 'number') S.upLvl.regen = 0;
   if(!S.potions) S.potions = {small:0, medium:0, large:0};
   else ['small','medium','large'].forEach(k=>{ if(!S.potions[k]) S.potions[k]=0; });
   if(!S.autoGold || !AUTO_GOLD_TIERS.every(t=>S.autoGold[t.key])){
