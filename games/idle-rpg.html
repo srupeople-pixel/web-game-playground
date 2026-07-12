@@ -621,15 +621,15 @@ let S = {
   inventory:{},
 };
 const PRESTIGE_UPG_DEF = [
-  {key:'power', icon:'💪', title:'초심자의 힘', desc:'시작 공격력 +1, 시작 체력 +2 영구 증가'},
-  {key:'wealth', icon:'💰', title:'축복받은 지갑', desc:'골드 획득량 영구 +3%'},
-  {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +3%'},
-  {key:'vitality', icon:'❤️', title:'불굴의 심장', desc:'최대체력 영구 +4%'},
-  {key:'headstart', icon:'🌱', title:'새출발 자금', desc:'환생할 때마다 시작 골드 +80'},
+  {key:'power', icon:'💪', title:'초심자의 힘', desc:'시작 공격력 +1, 시작 체력 +1 영구 증가'},
+  {key:'wealth', icon:'💰', title:'축복받은 지갑', desc:'골드 획득량 영구 +1.5%'},
+  {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +1.5%'},
+  {key:'vitality', icon:'❤️', title:'불굴의 심장', desc:'최대체력 영구 +2%'},
+  {key:'headstart', icon:'🌱', title:'새출발 자금', desc:'환생할 때마다 시작 골드 +40'},
 ];
 function prestigeCost(key, lvl){
   const base = {power:3, wealth:3, wisdom:3, vitality:3, headstart:4}[key];
-  const rate = key==='headstart' ? 1.6 : 1.5;
+  const rate = key==='headstart' ? 1.9 : 1.8;
   return Math.ceil(base*Math.pow(rate, lvl));
 }
 const AUTO_GOLD_TIERS = [
@@ -718,10 +718,10 @@ function skillXpToNext(level){ return Math.round(15*Math.pow(1.2, level-1)); }
 
 function deriveStats(){
   const p = S.prestige.upLvl;
-  S.maxHp = Math.round((S.baseHp + S.upLvl.hp*12 + S.level*2 + p.power*2 + equipBonus('hp')) * (1+p.vitality*0.04));
+  S.maxHp = Math.round((S.baseHp + S.upLvl.hp*12 + S.level*2 + p.power*1 + equipBonus('hp')) * (1+p.vitality*0.02));
   S.atk = Math.round((S.baseAtk + S.upLvl.atk*2 + p.power*1 + equipBonus('atk')) * (1+S.level*0.06));
   S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
-  S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.03) * (1 + equipBonus('goldPct')/100);
+  S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.015) * (1 + equipBonus('goldPct')/100);
 }
 function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
 function upgradeCost(key, lvl){
@@ -797,18 +797,18 @@ function renderStatSheet(){
   if(!el) return;
   const p = S.prestige.upLvl;
   const goldPct = Math.round((S.goldMult-1)*100);
-  const xpPct = Math.round((p.wisdom*0.03 + equipBonus('xpPct')/100)*100);
+  const xpPct = Math.round((p.wisdom*0.015 + equipBonus('xpPct')/100)*100);
   const cards = [
     {icon:'⚔️', name:'공격력', value:S.atk, lines:[
       `기본 ${S.baseAtk}`, `강화 +${S.upLvl.atk*2}`, `환생 +${p.power*1}`, `장비 +${equipBonus('atk')}`, `레벨보정 ×${(1+S.level*0.06).toFixed(2)}`]},
     {icon:'❤️', name:'최대체력', value:S.maxHp, lines:[
-      `기본 ${S.baseHp}`, `강화 +${S.upLvl.hp*12}`, `레벨 +${S.level*2}`, `환생 +${p.power*2}`, `장비 +${equipBonus('hp')}`, `환생배율 ×${(1+p.vitality*0.04).toFixed(2)}`]},
+      `기본 ${S.baseHp}`, `강화 +${S.upLvl.hp*12}`, `레벨 +${S.level*2}`, `환생 +${p.power*1}`, `장비 +${equipBonus('hp')}`, `환생배율 ×${(1+p.vitality*0.02).toFixed(2)}`]},
     {icon:'⚡', name:'공격속도', value:S.spd.toFixed(2)+'/초', lines:[
       `기본 ${S.baseSpd.toFixed(2)}`, `강화 +${(S.upLvl.spd*0.12).toFixed(2)}`]},
     {icon:'💰', name:'골드 획득량', value:'+'+goldPct+'%', lines:[
-      `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${Math.round(p.wealth*3)}%`, `장비 +${equipBonus('goldPct')}%`]},
+      `강화 +${(S.upLvl.gold*0.1).toFixed(1)}%`, `환생 +${(p.wealth*1.5).toFixed(1)}%`, `장비 +${equipBonus('goldPct')}%`]},
     {icon:'✨', name:'경험치 획득량', value:'+'+xpPct+'%', lines:[
-      `환생 +${Math.round(p.wisdom*3)}%`, `장비 +${equipBonus('xpPct')}%`]},
+      `환생 +${(p.wisdom*1.5).toFixed(1)}%`, `장비 +${equipBonus('xpPct')}%`]},
     {icon:'🎯', name:'채집 크리티컬', value:'', lines:[
       `🪓벌목 ${Math.round(GATHER_SKILLS.woodcutting.critChance*100)}%`,
       `🎣낚시 ${Math.round(GATHER_SKILLS.fishing.critChance*100)}%`,
@@ -860,7 +860,7 @@ function renderSidePanel(){
 }
 
 function gainXp(amount){
-  const mult = 1 + S.prestige.upLvl.wisdom*0.03 + equipBonus('xpPct')/100;
+  const mult = 1 + S.prestige.upLvl.wisdom*0.015 + equipBonus('xpPct')/100;
   S.xp += Math.round(amount * mult);
   let need = xpToNext(S.level);
   while(S.xp >= need){
@@ -942,7 +942,7 @@ function restartGame(){
   try{
     const keepPrestige = S.prestige;
     localStorage.removeItem(SAVE_KEY);
-    const headstartGold = keepPrestige.upLvl.headstart*80;
+    const headstartGold = keepPrestige.upLvl.headstart*40;
     S = {
       level:1, xp:0, gold:headstartGold,
       baseHp:70, baseAtk:6, baseSpd:1.0, goldMult:1,
