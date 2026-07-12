@@ -297,6 +297,18 @@
   </div>
 </div>
 
+<div id="reviveOverlay" class="overlay" hidden>
+  <div class="overlay-box">
+    <div class="overlay-emoji">🪶</div>
+    <h2>쓰러졌습니다!</h2>
+    <div class="overlay-stats">
+      <div>부활의 깃털을 사용하면 체력을 가득 채우고 그 자리에서 계속할 수 있습니다.</div>
+      <div>보유 부활의 깃털 <b id="reviveFeatherCount"></b>개</div>
+    </div>
+    <button id="reviveBtn" class="btn-restart">🪶 부활하기</button>
+  </div>
+</div>
+
 <script>
 /* ========================= 픽셀아트 스프라이트 (캔버스 도트 드로잉) ========================= */
 function px(ctx,x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
@@ -933,18 +945,28 @@ function enemyAttack(){
   floatDmg(heroCv, '-'+enemy.atk, '#ff6b8b');
   if(S.hp <= 0){
     S.hp = 0;
-    if((S.inventory[REVIVAL_ITEM_KEY]||0) > 0){
-      S.inventory[REVIVAL_ITEM_KEY]--;
-      S.hp = S.maxHp;
-      log('🪶 <b>부활의 깃털</b>이 발동! 그 자리에서 부활했습니다.');
-      renderHeroHp(); renderInventory(); save();
-      return;
-    }
     renderHeroHp();
-    triggerGameOver();
+    save();
+    if((S.inventory[REVIVAL_ITEM_KEY]||0) > 0){
+      showReviveOverlay();
+    } else {
+      triggerGameOver();
+    }
     return;
   }
   renderHeroHp();
+}
+function showReviveOverlay(){
+  document.getElementById('reviveFeatherCount').textContent = S.inventory[REVIVAL_ITEM_KEY]||0;
+  document.getElementById('reviveOverlay').hidden = false;
+}
+function useRevive(){
+  if((S.inventory[REVIVAL_ITEM_KEY]||0) <= 0) return;
+  S.inventory[REVIVAL_ITEM_KEY]--;
+  S.hp = S.maxHp;
+  document.getElementById('reviveOverlay').hidden = true;
+  log('🪶 <b>부활의 깃털</b>을 사용해 부활했습니다!');
+  renderHeroHp(); renderInventory(); save();
 }
 const REBIRTH_START_STAGE = 31; // 화산(baseStage 22) 10단계 = 22+10-1
 function rebirthPointsFor(stage){
@@ -1001,6 +1023,7 @@ function restartGame(){
     heroCd = 0; lastCombatTick = Date.now(); skillCd = {woodcutting:0, fishing:0, mining:0};
     deriveStats(); S.hp = S.maxHp;
     document.getElementById('gameOverOverlay').hidden = true;
+    document.getElementById('reviveOverlay').hidden = true;
     document.getElementById('log').innerHTML = '';
     spawnEnemy();
     renderAll();
@@ -1614,7 +1637,7 @@ function load(){
   }catch{ return false; }
 }
 function offlineRewards(){
-  if(S.gameOver) return;
+  if(S.gameOver || S.hp<=0) return;
   const elapsedMs = Math.min(Date.now()-S.lastSave, 4*3600*1000);
   const seconds = elapsedMs/1000;
   if(seconds < 30) return;
@@ -1675,7 +1698,7 @@ let skillCd = {woodcutting:0, fishing:0, mining:0};
 function combatTick(){
   const now = Date.now();
   const dt = now-lastCombatTick; lastCombatTick = now;
-  if(S.gameOver) return;
+  if(S.gameOver || S.hp<=0) return; // 게임오버 또는 부활 선택 대기 중이면 전부 정지
 
   // 재생력 강화를 샀다면 초당 최대체력 비례로 서서히 회복 (물약과 별개, 약하게)
   if(S.regenPct>0 && S.hp>0 && S.hp<S.maxHp){
@@ -1760,13 +1783,20 @@ function init(){
   if(!S.critPotionLvl) S.critPotionLvl = {woodcutting:0, fishing:0, mining:0};
   else ['woodcutting','fishing','mining'].forEach(k=>{ if(!S.critPotionLvl[k]) S.critPotionLvl[k]=0; });
   deriveStats();
-  if(!S.gameOver && (S.hp<=0 || S.hp>S.maxHp)) S.hp = S.maxHp;
+  if(!S.gameOver && S.hp>S.maxHp) S.hp = S.maxHp; // hp<=0인 경우는 부활 대기 상태일 수 있으니 여기서 되돌리지 않음
   spawnEnemy();
   renderAll();
-  if(hadSave && !S.gameOver) offlineRewards();
+  if(hadSave && !S.gameOver && S.hp>0) offlineRewards();
   renderAll();
-  if(S.gameOver) showGameOverOverlay();
+  if(S.gameOver){
+    showGameOverOverlay();
+  } else if(S.hp<=0){
+    // 부활 선택을 하기 전에 저장/새로고침된 경우 이어서 물어봄
+    if((S.inventory[REVIVAL_ITEM_KEY]||0) > 0) showReviveOverlay();
+    else triggerGameOver();
+  }
   document.getElementById('goRestart').addEventListener('click', restartGame);
+  document.getElementById('reviveBtn').addEventListener('click', useRevive);
   document.getElementById('combatToggleBtn').addEventListener('click', toggleCombat);
   requestAnimationFrame(drawLoop);
   setInterval(combatTick, 100);
