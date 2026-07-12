@@ -1244,9 +1244,9 @@ function renderForge(){
 /* ========================= 연금술 (부활의 깃털) ========================= */
 const REVIVAL_ITEM_KEY = 'revival_feather';
 const REVIVAL_RECIPE = [
-  {itemKey:'log_maple', name:'단풍 목재', icon:'🍁', qty:100},
-  {itemKey:'fish_crab', name:'게', icon:'🦀', qty:100},
-  {itemKey:'ore_silver', name:'은 광석', icon:'⬜', qty:100},
+  {itemKey:'log_normal', name:'통나무', icon:'🌳', qty:100},
+  {itemKey:'fish_shrimp', name:'새우', icon:'🦐', qty:100},
+  {itemKey:'ore_copper', name:'구리 광석', icon:'🟤', qty:100},
 ];
 function canCraftRevivalItem(){
   return REVIVAL_RECIPE.every(r => (S.inventory[r.itemKey]||0) >= r.qty);
