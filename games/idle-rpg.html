@@ -250,6 +250,11 @@
         <div class="shop" id="forgeList"></div>
       </div>
 
+      <div id="alchemySection" class="mode-window" hidden>
+        <div class="section-label">🪶 부활의 깃털 <span class="muted-label">(사망 시 자동 사용, 없으면 환생)</span></div>
+        <div class="shop" id="alchemyList"></div>
+      </div>
+
     </div>
   </div>
 
@@ -918,6 +923,13 @@ function enemyAttack(){
   floatDmg(heroCv, '-'+enemy.atk, '#ff6b8b');
   if(S.hp <= 0){
     S.hp = 0;
+    if((S.inventory[REVIVAL_ITEM_KEY]||0) > 0){
+      S.inventory[REVIVAL_ITEM_KEY]--;
+      S.hp = S.maxHp;
+      log('🪶 <b>부활의 깃털</b>이 발동! 그 자리에서 부활했습니다.');
+      renderHeroHp(); renderInventory(); save();
+      return;
+    }
     renderHeroHp();
     triggerGameOver();
     return;
@@ -995,6 +1007,7 @@ const MODES = [
   {key:'fishing', name:'낚시', icon:'🎣'},
   {key:'mining', name:'채광', icon:'⛏️'},
   {key:'smithing', name:'대장간', icon:'🔨'},
+  {key:'alchemy', name:'연금술', icon:'⚗️'},
 ];
 function setMode(mode){
   S.activeMode = mode;
@@ -1002,9 +1015,11 @@ function setMode(mode){
   document.getElementById('combatSection').hidden = mode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[mode];
   document.getElementById('smithingSection').hidden = mode!=='smithing';
+  document.getElementById('alchemySection').hidden = mode!=='alchemy';
   renderModeTabs();
   if(GATHER_SKILLS[mode]){ renderSkillPanel(); renderMaterialInventory(); }
   if(mode==='smithing'){ renderForge(); renderGearInventory(); }
+  if(mode==='alchemy'){ renderAlchemy(); }
   renderSidePanel();
   save();
 }
@@ -1225,6 +1240,39 @@ function renderForge(){
     list.appendChild(card);
   });
 }
+
+/* ========================= 연금술 (부활의 깃털) ========================= */
+const REVIVAL_ITEM_KEY = 'revival_feather';
+const REVIVAL_RECIPE = [
+  {itemKey:'log_maple', name:'단풍 목재', icon:'🍁', qty:100},
+  {itemKey:'fish_crab', name:'게', icon:'🦀', qty:100},
+  {itemKey:'ore_silver', name:'은 광석', icon:'⬜', qty:100},
+];
+function canCraftRevivalItem(){
+  return REVIVAL_RECIPE.every(r => (S.inventory[r.itemKey]||0) >= r.qty);
+}
+function craftRevivalItem(){
+  if(!canCraftRevivalItem()) return;
+  REVIVAL_RECIPE.forEach(r=>{ S.inventory[r.itemKey] -= r.qty; });
+  S.inventory[REVIVAL_ITEM_KEY] = (S.inventory[REVIVAL_ITEM_KEY]||0) + 1;
+  log('🪶 <b>부활의 깃털</b> 제작 완료!');
+  renderAlchemy(); renderInventory(); save();
+}
+function renderAlchemy(){
+  const list = document.getElementById('alchemyList');
+  if(!list) return;
+  const owned = S.inventory[REVIVAL_ITEM_KEY]||0;
+  const afford = canCraftRevivalItem();
+  const materialLines = REVIVAL_RECIPE.map(r=>`${r.icon} ${r.name} ${S.inventory[r.itemKey]||0}/${r.qty}`).join(' · ');
+  list.innerHTML = `<div class="upg${afford?'':' disabled'}">
+    <div class="upg-head"><span>🪶 부활의 깃털</span><span>보유 ${owned}개</span></div>
+    <div class="upg-desc">사망 시 자동으로 사용되어 체력을 가득 채우고 그 자리에서 부활합니다.<br>없으면 게임오버 후 환생 처리됩니다.</div>
+    <div class="upg-desc">${materialLines}</div>
+    <div class="upg-cost">⚗️ 제작하기</div>
+  </div>`;
+  list.querySelector('.upg').onclick = craftRevivalItem;
+}
+
 function sellMaterial(key, qty){
   const have = S.inventory[key]||0;
   const n = Math.min(have, qty);
@@ -1545,11 +1593,12 @@ function drawLoop(now){
 /* ========================= 초기화 ========================= */
 function renderAll(){
   renderStats(); renderModeTabs(); renderZones(); renderShop(); renderPotionShop(); renderPotionBar();
-  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory();
+  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory(); renderAlchemy();
   renderCombatToggle();
   document.getElementById('combatSection').hidden = S.activeMode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[S.activeMode];
   document.getElementById('smithingSection').hidden = S.activeMode!=='smithing';
+  document.getElementById('alchemySection').hidden = S.activeMode!=='alchemy';
   if(GATHER_SKILLS[S.activeMode]) renderSkillPanel();
 }
 function init(){
