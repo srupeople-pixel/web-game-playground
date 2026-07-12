@@ -253,6 +253,9 @@
       <div id="alchemySection" class="mode-window" hidden>
         <div class="section-label">🪶 부활의 깃털 <span class="muted-label">(사망 시 자동 사용, 없으면 환생)</span></div>
         <div class="shop" id="alchemyList"></div>
+
+        <div class="section-label">🧪 크리티컬 물약 <span class="muted-label">(제작마다 즉시 +5%, 영구 누적)</span></div>
+        <div class="shop" id="critPotionList"></div>
       </div>
 
     </div>
@@ -633,6 +636,7 @@ let S = {
   activeMode:'combat',
   combatActive:false,
   selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
+  critPotionLvl:{woodcutting:0, fishing:0, mining:0},
   skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
   inventory:{},
 };
@@ -826,9 +830,9 @@ function renderStatSheet(){
     {icon:'✨', name:'경험치 획득량', value:'+'+xpPct+'%', lines:[
       `환생 +${(p.wisdom*0.5).toFixed(1)}%`, `장비 +${equipBonus('xpPct')}%`]},
     {icon:'🎯', name:'채집 크리티컬', value:'', lines:[
-      `🪓벌목 ${Math.round(GATHER_SKILLS.woodcutting.critChance*100)}%`,
-      `🎣낚시 ${Math.round(GATHER_SKILLS.fishing.critChance*100)}%`,
-      `⛏️채광 ${Math.round(GATHER_SKILLS.mining.critChance*100)}%`]},
+      `🪓벌목 ${Math.round(effectiveCritChance('woodcutting')*100)}%`,
+      `🎣낚시 ${Math.round(effectiveCritChance('fishing')*100)}%`,
+      `⛏️채광 ${Math.round(effectiveCritChance('mining')*100)}%`]},
     {icon:'🔮', name:'환생 강화', value:S.prestige.points.toLocaleString()+'P', lines:
       PRESTIGE_UPG_DEF.map(u=>`${u.title} Lv.${p[u.key]}`)},
     {icon:'🛡️', name:'장착 장비', value:'', lines:
@@ -983,6 +987,7 @@ function restartGame(){
       activeMode:'combat',
       combatActive:false,
       selectedTree:'normal', selectedFish:'shrimp', selectedOre:'copper',
+      critPotionLvl:{woodcutting:0, fishing:0, mining:0},
       skills:{ woodcutting:{level:1,xp:0}, fishing:{level:1,xp:0}, mining:{level:1,xp:0} },
       inventory:{},
     };
@@ -1019,7 +1024,7 @@ function setMode(mode){
   renderModeTabs();
   if(GATHER_SKILLS[mode]){ renderSkillPanel(); renderMaterialInventory(); }
   if(mode==='smithing'){ renderForge(); renderGearInventory(); }
-  if(mode==='alchemy'){ renderAlchemy(); }
+  if(mode==='alchemy'){ renderAlchemy(); renderCritPotions(); }
   renderSidePanel();
   save();
 }
@@ -1039,6 +1044,11 @@ const GATHER_SKILLS = {
   fishing:     {catalog:FISH,  selectedKey:'selectedFish',  icon:'🎣', critChance:0.15, rareChance:0.03, rareLabel:'보물상자', rareIcon:'🎁', draw:drawFishSpot, canvasId:'fishCanvas'},
   mining:      {catalog:ORES,  selectedKey:'selectedOre',   icon:'⛏️', critChance:0.12, rareChance:0.025, rareLabel:'보석',   rareIcon:'💎', draw:drawOreRock, canvasId:'oreCanvas'},
 };
+function effectiveCritChance(skillKey){
+  const base = GATHER_SKILLS[skillKey].critChance;
+  const bonus = (S.critPotionLvl[skillKey]||0) * 0.05;
+  return Math.min(1, base + bonus);
+}
 function gatherItemByKey(skillKey, itemKey){
   const g = GATHER_SKILLS[skillKey];
   return g.catalog.find(t=>t.key===itemKey) || g.catalog[0];
@@ -1056,7 +1066,7 @@ function doGatherAction(skillKey){
   const item = currentGatherItem(skillKey);
   const sk = S.skills[skillKey];
   let qty = 1, critMsg = '';
-  if(Math.random() < g.critChance){ qty = 2; critMsg = ' 🌟크리티컬!'; }
+  if(Math.random() < effectiveCritChance(skillKey)){ qty = 2; critMsg = ' 🌟크리티컬!'; }
   S.inventory[item.itemKey] = (S.inventory[item.itemKey]||0)+qty;
   sk.xp += item.xp;
   let need = skillXpToNext(sk.level);
@@ -1099,7 +1109,7 @@ function renderGatherPanel(skillKey){
     <div class="skill-title">${g.icon} ${SKILL_NAMES[skillKey]} Lv.${sk.level} <span class="muted-label">- ${item.name} 채집중</span></div>
     <div class="skill-sub">보유 ${item.itemName} ${S.inventory[item.itemKey]||0}개 · 경험치 ${sk.xp}/${need}</div>
     <div class="skill-progress-wrap"><div class="skill-progress" style="width:${pct}%"></div></div>
-    <div class="skill-sub">크리티컬 확률 ${Math.round(g.critChance*100)}% · ${g.rareLabel} 확률 ${Math.round(g.rareChance*100)}%</div>
+    <div class="skill-sub">크리티컬 확률 ${Math.round(effectiveCritChance(skillKey)*100)}% · ${g.rareLabel} 확률 ${Math.round(g.rareChance*100)}%</div>
     <div class="zone-list" style="width:100%;margin-top:6px;">${cards}</div>`;
   panel.querySelectorAll('[data-gather]').forEach(el=>{
     el.style.cursor = 'pointer';
@@ -1271,6 +1281,51 @@ function renderAlchemy(){
     <div class="upg-cost">⚗️ 제작하기</div>
   </div>`;
   list.querySelector('.upg').onclick = craftRevivalItem;
+}
+
+/* 채집 크리티컬 확률 물약 (벌목/낚시/채광 각각, 만들 때마다 즉시 +5%) */
+const CRIT_POTION_RECIPE = [
+  {itemKey:'log_maple', name:'단풍 목재', icon:'🍁', qty:100},
+  {itemKey:'fish_crab', name:'게', icon:'🦀', qty:100},
+  {itemKey:'ore_silver', name:'은 광석', icon:'⬜', qty:100},
+];
+const CRIT_POTION_BONUS = 0.05;
+const CRIT_POTIONS = [
+  {skillKey:'woodcutting', icon:'🪓', name:'벌목 크리티컬 물약'},
+  {skillKey:'fishing', icon:'🎣', name:'낚시 크리티컬 물약'},
+  {skillKey:'mining', icon:'⛏️', name:'채광 크리티컬 물약'},
+];
+function canCraftCritPotion(){
+  return CRIT_POTION_RECIPE.every(r => (S.inventory[r.itemKey]||0) >= r.qty);
+}
+function craftCritPotion(skillKey){
+  if(!canCraftCritPotion()) return;
+  CRIT_POTION_RECIPE.forEach(r=>{ S.inventory[r.itemKey] -= r.qty; });
+  S.critPotionLvl[skillKey] = (S.critPotionLvl[skillKey]||0) + 1;
+  const def = CRIT_POTIONS.find(p=>p.skillKey===skillKey);
+  log(`${def.icon} <b>${def.name}</b> 제작! ${SKILL_NAMES[skillKey]} 크리티컬 확률 +${Math.round(CRIT_POTION_BONUS*100)}%`);
+  renderCritPotions(); renderInventory(); renderSidePanel();
+  if(S.activeMode===skillKey) renderSkillPanel();
+  save();
+}
+function renderCritPotions(){
+  const list = document.getElementById('critPotionList');
+  if(!list) return;
+  const afford = canCraftCritPotion();
+  const materialLines = CRIT_POTION_RECIPE.map(r=>`${r.icon} ${r.name} ${S.inventory[r.itemKey]||0}/${r.qty}`).join(' · ');
+  list.innerHTML = CRIT_POTIONS.map(p=>{
+    const lvl = S.critPotionLvl[p.skillKey]||0;
+    const curPct = Math.round(effectiveCritChance(p.skillKey)*100);
+    return `<div class="upg${afford?'':' disabled'}" data-skill="${p.skillKey}">
+      <div class="upg-head"><span>${p.icon} ${p.name}</span><span>Lv.${lvl}</span></div>
+      <div class="upg-desc">현재 크리티컬 확률 ${curPct}% (제작마다 +${Math.round(CRIT_POTION_BONUS*100)}%)</div>
+      <div class="upg-desc">${materialLines}</div>
+      <div class="upg-cost">⚗️ 제작하기</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-skill]').forEach(card=>{
+    card.onclick = ()=>craftCritPotion(card.dataset.skill);
+  });
 }
 
 function sellMaterial(key, qty){
@@ -1593,7 +1648,7 @@ function drawLoop(now){
 /* ========================= 초기화 ========================= */
 function renderAll(){
   renderStats(); renderModeTabs(); renderZones(); renderShop(); renderPotionShop(); renderPotionBar();
-  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory(); renderAlchemy();
+  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory(); renderAlchemy(); renderCritPotions();
   renderCombatToggle();
   document.getElementById('combatSection').hidden = S.activeMode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[S.activeMode];
@@ -1634,6 +1689,8 @@ function init(){
   if(!S.selectedTree) S.selectedTree = 'normal';
   if(!S.selectedFish) S.selectedFish = 'shrimp';
   if(!S.selectedOre) S.selectedOre = 'copper';
+  if(!S.critPotionLvl) S.critPotionLvl = {woodcutting:0, fishing:0, mining:0};
+  else ['woodcutting','fishing','mining'].forEach(k=>{ if(!S.critPotionLvl[k]) S.critPotionLvl[k]=0; });
   deriveStats();
   if(!S.gameOver && (S.hp<=0 || S.hp>S.maxHp)) S.hp = S.maxHp;
   spawnEnemy();
