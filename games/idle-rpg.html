@@ -1101,7 +1101,7 @@ function renderModeTabs(){
 const GATHER_SKILLS = {
   woodcutting: {catalog:TREES, selectedKey:'selectedTree', icon:'🪓', critChance:0.15, rareChance:0.03, rareLabel:'새 둥지', rareIcon:'🪺', draw:drawTree, canvasId:'treeCanvas'},
   fishing:     {catalog:FISH,  selectedKey:'selectedFish',  icon:'🎣', critChance:0.15, rareChance:0.03, rareLabel:'보물상자', rareIcon:'🎁', draw:drawFishSpot, canvasId:'fishCanvas'},
-  mining:      {catalog:ORES,  selectedKey:'selectedOre',   icon:'⛏️', critChance:0.12, rareChance:0.025, rareLabel:'보석',   rareIcon:'💎', draw:drawOreRock, canvasId:'oreCanvas'},
+  mining:      {catalog:ORES,  selectedKey:'selectedOre',   icon:'⛏️', critChance:0.15, rareChance:0.025, rareLabel:'보석',   rareIcon:'💎', draw:drawOreRock, canvasId:'oreCanvas'},
 };
 function effectiveCritChance(skillKey){
   const base = GATHER_SKILLS[skillKey].critChance;
