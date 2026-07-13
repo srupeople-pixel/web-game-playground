@@ -1740,7 +1740,7 @@ function offlineRewards(){
     if(!S.gatherActive[skillKey]) return;
     const g = GATHER_SKILLS[skillKey];
     const item = currentGatherItem(skillKey);
-    const cycles = Math.floor(elapsedMs * 0.25 / item.actionMs); // 오프라인 채집은 25% 효율로 크게 감소
+    const cycles = Math.floor(elapsedMs / 3600000 * 50); // 오프라인 채집은 아이템 소요시간과 무관하게 시간당 50회 분량으로 고정
     if(cycles <= 0) return;
     const crit = effectiveCritChance(skillKey);
     const avgQtyPerCycle = 1*(1-crit) + 2*crit;
