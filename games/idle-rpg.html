@@ -981,12 +981,27 @@ function rebirthPointsFor(stage){
   if(stage < REBIRTH_START_STAGE) return 0;
   return Math.floor((stage-REBIRTH_START_STAGE)/10) + 1;
 }
+const ZONE_BONUS_RP_ZONES = ['forest','cave'];
+const ZONE_BONUS_RP_START_STAGE = 50;
+function zoneBonusRebirthPoints(){
+  // 숲/동굴은 50단계부터 10단계마다 환생 포인트 +1 추가 지급
+  let bonus = 0;
+  ZONE_BONUS_RP_ZONES.forEach(key=>{
+    const zp = S.zoneProgress[key];
+    if(zp && zp.subStage >= ZONE_BONUS_RP_START_STAGE){
+      bonus += Math.floor((zp.subStage - ZONE_BONUS_RP_START_STAGE)/10) + 1;
+    }
+  });
+  return bonus;
+}
+function totalRebirthPoints(){
+  return rebirthPointsFor(totalEffectiveStage()) + zoneBonusRebirthPoints();
+}
 let lastRpEarned = 0;
 function triggerGameOver(){
   if(S.gameOver) return;
   S.gameOver = true;
-  const effStage = totalEffectiveStage();
-  lastRpEarned = rebirthPointsFor(effStage);
+  lastRpEarned = totalRebirthPoints();
   S.prestige.points += lastRpEarned;
   log(`💀 용사가 쓰러졌습니다... 🔮 환생 포인트 +${lastRpEarned} 획득!`);
   showGameOverOverlay();
@@ -1449,8 +1464,7 @@ function voluntaryRebirth(){
   if(S.gameOver) return;
   const zone = currentZone();
   const zp = S.zoneProgress[zone.key];
-  const effStage = totalEffectiveStage();
-  const rp = rebirthPointsFor(effStage);
+  const rp = totalRebirthPoints();
   const ok = confirm(`지금 환생하면 현재 진행(레벨 ${S.level}, ${zone.icon} ${zone.name} ${zp.subStage}단계)이 초기화되고\n🔮 환생 포인트 +${rp}을 얻습니다.\n\n환생하시겠습니까?`);
   if(!ok) return;
   lastRpEarned = rp;
@@ -1463,8 +1477,7 @@ function renderRebirthNowCard(){
   if(!el) return;
   const zone = currentZone();
   const zp = S.zoneProgress[zone.key];
-  const effStage = totalEffectiveStage();
-  const rp = rebirthPointsFor(effStage);
+  const rp = totalRebirthPoints();
   el.innerHTML = `<div><div class="ag-title">🔮 지금 환생하기</div>
     <div class="ag-desc">${zone.icon} ${zone.name} ${zp.subStage}단계 · 지금 환생하면 <b>+${rp}</b> 포인트 획득 (현재 보유 ${S.prestige.points.toLocaleString()})</div></div>
     <button id="voluntaryRebirthBtn" ${S.gameOver||rp<=0?'disabled':''}>🔮 환생하기</button>`;
