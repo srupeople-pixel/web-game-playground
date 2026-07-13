@@ -676,6 +676,10 @@ const AUTO_GOLD_TIERS = [
   {key:'t6', icon:'🗄️', title:'3분', cost:6000,  cycleMs:180000, rewardBase:1260},
   {key:'t7', icon:'🏦', title:'5분', cost:12000, cycleMs:300000, rewardBase:3000},
   {key:'t8', icon:'🏦', title:'10분', cost:25000, cycleMs:600000, rewardBase:9000},
+  {key:'t9', icon:'🏛️', title:'20분', cost:50000, cycleMs:1200000, rewardBase:25000},
+  {key:'t10', icon:'🏛️', title:'30분', cost:90000, cycleMs:1800000, rewardBase:50000},
+  {key:'t11', icon:'🏛️', title:'45분', cost:160000, cycleMs:2700000, rewardBase:100000},
+  {key:'t12', icon:'🏛️', title:'60분', cost:280000, cycleMs:3600000, rewardBase:180000},
 ];
 
 /* ========================= 장비 ========================= */
@@ -1770,10 +1774,13 @@ function init(){
   else if(typeof S.upLvl.regen !== 'number') S.upLvl.regen = 0;
   if(!S.potions) S.potions = {small:0, medium:0, large:0};
   else ['small','medium','large'].forEach(k=>{ if(!S.potions[k]) S.potions[k]=0; });
-  if(!S.autoGold || !AUTO_GOLD_TIERS.every(t=>S.autoGold[t.key])){
+  if(!S.autoGold){
     S.autoGold = freshAutoGold();
   } else {
-    AUTO_GOLD_TIERS.forEach(t=>{ if(typeof S.autoGold[t.key].autoClaim !== 'boolean') S.autoGold[t.key].autoClaim = false; });
+    AUTO_GOLD_TIERS.forEach(t=>{
+      if(!S.autoGold[t.key]) S.autoGold[t.key] = {unlocked:false, readyAt:0, autoClaim:false};
+      else if(typeof S.autoGold[t.key].autoClaim !== 'boolean') S.autoGold[t.key].autoClaim = false;
+    });
     delete S.autoGold.autoClaim;
   }
   if(!S.prestige) S.prestige = {points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0}};
