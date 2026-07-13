@@ -1630,8 +1630,10 @@ function renderAutoGold(){
         <button class="agBtn" ${afford?'':'disabled'}>🔓 💰${tier.cost.toLocaleString()}</button>`;
       el.querySelector('.agBtn').onclick = ()=>unlockAutoGold(tier.key);
     } else if(st.autoClaim){
+      const remain = st.readyAt - Date.now();
+      const ready = remain <= 0;
       el.innerHTML = `<div class="ag-title">${tier.icon} ${tier.title}</div>
-        <div class="ag-desc">🤖 자동 수집 중</div>
+        <div class="ag-desc">🤖 ${ready ? '수금 중...' : fmtMMSS(remain)+' 남음'}</div>
         <div class="ag-rate">${rateText}</div>`;
     } else {
       const remain = st.readyAt - Date.now();
