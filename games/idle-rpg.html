@@ -1614,7 +1614,8 @@ function fmtMMSS(ms){
   return h>0 ? String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(r).padStart(2,'0')
              : String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
 }
-function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult*S.autoGoldRateMult*autoGoldPotionMult()); }
+function autoGoldRewardRaw(tier){ return tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult*S.autoGoldRateMult*autoGoldPotionMult(); }
+function autoGoldReward(tier){ return Math.round(autoGoldRewardRaw(tier)); }
 function unlockAutoGold(tierKey){
   const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
   const st = S.autoGold[tierKey];
@@ -1663,8 +1664,8 @@ function renderAutoGold(){
   AUTO_GOLD_TIERS.forEach(tier=>{
     const st = S.autoGold[tier.key];
     const reward = autoGoldReward(tier);
-    const ratePerSec = reward/(tier.cycleMs/1000);
-    const rateText = `⚡ 초당 ${ratePerSec>=10?Math.round(ratePerSec):ratePerSec.toFixed(1)}💰`;
+    const ratePerSec = autoGoldRewardRaw(tier)/(tier.cycleMs/1000);
+    const rateText = `⚡ 초당 ${ratePerSec>=10?ratePerSec.toFixed(1):ratePerSec.toFixed(2)}💰`;
     const el = document.createElement('div');
     el.className = 'autogold-card';
     if(!st.unlocked){
