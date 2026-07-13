@@ -921,7 +921,7 @@ function gainXp(amount){
 }
 
 function playerAttack(){
-  if(!enemy) return;
+  if(!enemy || enemy.hp<=0) return;
   enemy.hp -= S.atk;
   flash(enemyCv);
   floatDmg(enemyCv, '-'+S.atk, '#ffd76b');
@@ -1411,9 +1411,9 @@ function renderCritPotions(){
 
 /* 자동수금 촉진 물약 (벌목/낚시/채광 재료로 제작, 만들 때마다 자동수금 초당 수급량 즉시 +3%, 영구 누적) */
 const AUTOGOLD_POTION_RECIPE = [
-  {itemKey:'log_yew', name:'주목 목재', icon:'🌲', qty:100},
-  {itemKey:'fish_puffer', name:'복어', icon:'🐡', qty:100},
-  {itemKey:'ore_gold', name:'금 광석', icon:'🟡', qty:100},
+  {itemKey:'log_magic', name:'마법 목재', icon:'✨', qty:100},
+  {itemKey:'fish_lobster', name:'랍스터', icon:'🦞', qty:100},
+  {itemKey:'ore_mithril', name:'미스릴 광석', icon:'🔵', qty:100},
 ];
 const AUTOGOLD_POTION_BONUS = 0.03;
 function canCraftAutoGoldPotion(){
@@ -1775,10 +1775,10 @@ function combatTick(){
   }
 
   // 전투와 채집 3종은 서로 화면 전환과 무관하게 각자 독립적으로 동시에 진행됩니다.
-  if(S.combatActive){
+  if(S.combatActive && enemy && enemy.hp>0){
     heroCd -= dt;
-    if(enemy){ enemy.atkCd -= dt; }
-    if(heroCd<=0 && enemy){ playerAttack(); heroCd = 1000/S.spd; }
+    enemy.atkCd -= dt;
+    if(heroCd<=0){ playerAttack(); heroCd = 1000/S.spd; }
     if(enemy && enemy.atkCd<=0){ enemyAttack(); enemy.atkCd = 2000 + Math.random()*700; }
   }
   Object.keys(GATHER_SKILLS).forEach(skillKey=>{
