@@ -969,6 +969,14 @@ function useRevive(){
   renderHeroHp(); renderInventory(); save();
 }
 const REBIRTH_START_STAGE = 31; // 화산(baseStage 22) 10단계 = 22+10-1
+function totalEffectiveStage(){
+  // 환생 포인트는 지금 서있는 사냥터 하나가 아니라, 잠금 해제한 모든 사냥터의 진행도를 합산합니다.
+  let total = 0;
+  ZONES.forEach(z=>{
+    if(S.level >= z.unlockLevel) total += effectiveStage(z.key);
+  });
+  return total;
+}
 function rebirthPointsFor(stage){
   if(stage < REBIRTH_START_STAGE) return 0;
   return Math.floor((stage-REBIRTH_START_STAGE)/10) + 1;
@@ -977,7 +985,7 @@ let lastRpEarned = 0;
 function triggerGameOver(){
   if(S.gameOver) return;
   S.gameOver = true;
-  const effStage = effectiveStage(S.currentZone);
+  const effStage = totalEffectiveStage();
   lastRpEarned = rebirthPointsFor(effStage);
   S.prestige.points += lastRpEarned;
   log(`💀 용사가 쓰러졌습니다... 🔮 환생 포인트 +${lastRpEarned} 획득!`);
@@ -1441,7 +1449,7 @@ function voluntaryRebirth(){
   if(S.gameOver) return;
   const zone = currentZone();
   const zp = S.zoneProgress[zone.key];
-  const effStage = effectiveStage(zone.key);
+  const effStage = totalEffectiveStage();
   const rp = rebirthPointsFor(effStage);
   const ok = confirm(`지금 환생하면 현재 진행(레벨 ${S.level}, ${zone.icon} ${zone.name} ${zp.subStage}단계)이 초기화되고\n🔮 환생 포인트 +${rp}을 얻습니다.\n\n환생하시겠습니까?`);
   if(!ok) return;
@@ -1455,7 +1463,7 @@ function renderRebirthNowCard(){
   if(!el) return;
   const zone = currentZone();
   const zp = S.zoneProgress[zone.key];
-  const effStage = effectiveStage(zone.key);
+  const effStage = totalEffectiveStage();
   const rp = rebirthPointsFor(effStage);
   el.innerHTML = `<div><div class="ag-title">🔮 지금 환생하기</div>
     <div class="ag-desc">${zone.icon} ${zone.name} ${zp.subStage}단계 · 지금 환생하면 <b>+${rp}</b> 포인트 획득 (현재 보유 ${S.prestige.points.toLocaleString()})</div></div>
