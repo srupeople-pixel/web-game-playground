@@ -259,7 +259,7 @@
         <div class="section-label">🧪 크리티컬 물약 <span class="muted-label">(제작마다 즉시 +5%, 영구 누적)</span></div>
         <div class="shop" id="critPotionList"></div>
 
-        <div class="section-label">💹 자동수금 촉진 물약 <span class="muted-label">(제작마다 즉시 +3%, 영구 누적)</span></div>
+        <div class="section-label">💹 자동수금 촉진 물약 <span class="muted-label">(마시면 30분간 +30%, 영구 아님)</span></div>
         <div class="shop" id="autoGoldPotionList"></div>
       </div>
 
@@ -643,7 +643,7 @@ let S = {
     t5:{unlocked:false,readyAt:0,autoClaim:false}, t6:{unlocked:false,readyAt:0,autoClaim:false},
     t7:{unlocked:false,readyAt:0,autoClaim:false}, t8:{unlocked:false,readyAt:0,autoClaim:false},
   },
-  autoGoldPotionLvl:0,
+  autoGoldPotionActiveUntil:0,
   gameOver:false,
   lastSave:Date.now(),
   prestige:{points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0, autoCollect:0}},
@@ -767,7 +767,7 @@ function deriveStats(){
   S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
   S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.005) * (1 + equipBonus('goldPct')/100);
   S.regenPct = S.upLvl.regen*0.002; // 레벨당 초당 최대체력의 0.2%
-  S.autoGoldRateMult = (1 + p.autoCollect*0.03) * (1 + (S.autoGoldPotionLvl||0)*0.03);
+  S.autoGoldRateMult = 1 + p.autoCollect*0.03;
 }
 function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
 function upgradeCost(key, lvl){
@@ -1038,7 +1038,7 @@ function restartGame(){
       upLvl:{atk:0, hp:0, spd:0, gold:0, regen:0},
       potions:{small:0, medium:0, large:0},
       autoGold: freshAutoGold(),
-      autoGoldPotionLvl:0,
+      autoGoldPotionActiveUntil:0,
       gameOver:false,
       lastSave:Date.now(),
       prestige: keepPrestige,
@@ -1409,22 +1409,25 @@ function renderCritPotions(){
   });
 }
 
-/* 자동수금 촉진 물약 (벌목/낚시/채광 재료로 제작, 만들 때마다 자동수금 초당 수급량 즉시 +3%, 영구 누적) */
+/* 자동수금 촉진 물약 (벌목/낚시/채광 재료로 제작, 마시면 일정 시간동안만 자동수금 초당 수급량 상승, 영구 누적 아님) */
 const AUTOGOLD_POTION_RECIPE = [
   {itemKey:'log_magic', name:'마법 목재', icon:'✨', qty:100},
   {itemKey:'fish_lobster', name:'랍스터', icon:'🦞', qty:100},
   {itemKey:'ore_mithril', name:'미스릴 광석', icon:'🔵', qty:100},
 ];
-const AUTOGOLD_POTION_BONUS = 0.03;
+const AUTOGOLD_POTION_BOOST = 0.3;
+const AUTOGOLD_POTION_DURATION_MS = 30*60*1000;
 function canCraftAutoGoldPotion(){
   return AUTOGOLD_POTION_RECIPE.every(r => (S.inventory[r.itemKey]||0) >= r.qty);
+}
+function autoGoldPotionMult(){
+  return (S.autoGoldPotionActiveUntil && Date.now() < S.autoGoldPotionActiveUntil) ? 1+AUTOGOLD_POTION_BOOST : 1;
 }
 function craftAutoGoldPotion(){
   if(!canCraftAutoGoldPotion()) return;
   AUTOGOLD_POTION_RECIPE.forEach(r=>{ S.inventory[r.itemKey] -= r.qty; });
-  S.autoGoldPotionLvl = (S.autoGoldPotionLvl||0) + 1;
-  deriveStats();
-  log(`💹 <b>자동수금 촉진 물약</b> 제작! 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BONUS*100)}%`);
+  S.autoGoldPotionActiveUntil = Date.now() + AUTOGOLD_POTION_DURATION_MS;
+  log(`💹 <b>자동수금 촉진 물약</b>을 마셨습니다! ${AUTOGOLD_POTION_DURATION_MS/60000}분간 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`);
   renderAutoGoldPotion(); renderInventory(); renderAutoGold();
   save();
 }
@@ -1432,13 +1435,14 @@ function renderAutoGoldPotion(){
   const list = document.getElementById('autoGoldPotionList');
   if(!list) return;
   const afford = canCraftAutoGoldPotion();
-  const lvl = S.autoGoldPotionLvl||0;
+  const remain = (S.autoGoldPotionActiveUntil||0) - Date.now();
+  const active = remain > 0;
   const materialLines = AUTOGOLD_POTION_RECIPE.map(r=>`${r.icon} ${r.name} ${S.inventory[r.itemKey]||0}/${r.qty}`).join(' · ');
   list.innerHTML = `<div class="upg${afford?'':' disabled'}">
-    <div class="upg-head"><span>💹 자동수금 촉진 물약</span><span>Lv.${lvl}</span></div>
-    <div class="upg-desc">자동수금 초당 수급량 배율 ${(S.autoGoldRateMult||1).toFixed(2)}배 (제작마다 +${Math.round(AUTOGOLD_POTION_BONUS*100)}%)</div>
+    <div class="upg-head"><span>💹 자동수금 촉진 물약</span><span>${active ? fmtMMSS(remain)+' 남음' : '효과 없음'}</span></div>
+    <div class="upg-desc">${active ? `자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}% 적용 중 (마시면 갱신)` : `마시면 ${AUTOGOLD_POTION_DURATION_MS/60000}분간 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`}</div>
     <div class="upg-desc">${materialLines}</div>
-    <div class="upg-cost">⚗️ 제작하기</div>
+    <div class="upg-cost">⚗️ 마시기</div>
   </div>`;
   list.querySelector('.upg').onclick = craftAutoGoldPotion;
 }
@@ -1610,7 +1614,7 @@ function fmtMMSS(ms){
   return h>0 ? String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(r).padStart(2,'0')
              : String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
 }
-function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult*S.autoGoldRateMult); }
+function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult*S.autoGoldRateMult*autoGoldPotionMult()); }
 function unlockAutoGold(tierKey){
   const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
   const st = S.autoGold[tierKey];
@@ -1828,7 +1832,7 @@ function init(){
   }
   if(!S.prestige) S.prestige = {points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0, autoCollect:0}};
   else PRESTIGE_UPG_DEF.forEach(u=>{ if(!S.prestige.upLvl[u.key]) S.prestige.upLvl[u.key]=0; });
-  if(typeof S.autoGoldPotionLvl !== 'number') S.autoGoldPotionLvl = 0;
+  if(typeof S.autoGoldPotionActiveUntil !== 'number') S.autoGoldPotionActiveUntil = 0;
   if(!S.currentZone || !S.zoneProgress){
     S.currentZone = 'forest';
     S.zoneProgress = freshZoneProgress();
@@ -1872,7 +1876,7 @@ function init(){
   document.getElementById('combatToggleBtn').addEventListener('click', toggleCombat);
   requestAnimationFrame(drawLoop);
   setInterval(combatTick, 100);
-  setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); renderModeTabs(); if(GATHER_SKILLS[S.activeMode]) renderSkillPanel(); }, 1000);
+  setInterval(()=>{ autoCollectTick(); renderAutoGold(); renderRebirthNowCard(); renderModeTabs(); if(GATHER_SKILLS[S.activeMode]) renderSkillPanel(); if(S.activeMode==='alchemy') renderAutoGoldPotion(); }, 1000);
   setInterval(save, 5000);
   window.addEventListener('beforeunload', save);
   if(!hadSave) log('게임을 시작합니다. "⚔️ 전투 시작" 버튼을 눌러 전투를 시작하세요.');
