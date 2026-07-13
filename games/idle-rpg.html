@@ -258,6 +258,9 @@
 
         <div class="section-label">🧪 크리티컬 물약 <span class="muted-label">(제작마다 즉시 +5%, 영구 누적)</span></div>
         <div class="shop" id="critPotionList"></div>
+
+        <div class="section-label">💹 자동수금 촉진 물약 <span class="muted-label">(제작마다 즉시 +3%, 영구 누적)</span></div>
+        <div class="shop" id="autoGoldPotionList"></div>
       </div>
 
     </div>
@@ -640,9 +643,10 @@ let S = {
     t5:{unlocked:false,readyAt:0,autoClaim:false}, t6:{unlocked:false,readyAt:0,autoClaim:false},
     t7:{unlocked:false,readyAt:0,autoClaim:false}, t8:{unlocked:false,readyAt:0,autoClaim:false},
   },
+  autoGoldPotionLvl:0,
   gameOver:false,
   lastSave:Date.now(),
-  prestige:{points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0}},
+  prestige:{points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0, autoCollect:0}},
   currentZone:'forest',
   zoneProgress: freshZoneProgress(),
   equipment:{weapon:null, armor:null, accessory:null},
@@ -661,10 +665,11 @@ const PRESTIGE_UPG_DEF = [
   {key:'wisdom', icon:'✨', title:'현자의 지혜', desc:'경험치 획득량 영구 +0.5%'},
   {key:'vitality', icon:'❤️', title:'불굴의 심장', desc:'최대체력 영구 +2%'},
   {key:'headstart', icon:'🌱', title:'새출발 자금', desc:'환생할 때마다 시작 골드 +40'},
+  {key:'autoCollect', icon:'🤖', title:'수금꾼의 숙련', desc:'자동수금 초당 수급량 영구 +3%'},
 ];
 function prestigeCost(key, lvl){
-  const base = {power:3, wealth:3, wisdom:3, vitality:3, headstart:4}[key];
-  const rate = key==='headstart' ? 1.9 : 1.8;
+  const base = {power:3, wealth:3, wisdom:3, vitality:3, headstart:4, autoCollect:10}[key];
+  const rate = key==='headstart' ? 1.9 : key==='autoCollect' ? 2.3 : 1.8;
   return Math.ceil(base*Math.pow(rate, lvl));
 }
 const AUTO_GOLD_TIERS = [
@@ -762,6 +767,7 @@ function deriveStats(){
   S.spd = +(S.baseSpd + S.upLvl.spd*0.12).toFixed(2);
   S.goldMult = (1 + S.upLvl.gold*0.001) * (1 + p.wealth*0.005) * (1 + equipBonus('goldPct')/100);
   S.regenPct = S.upLvl.regen*0.002; // 레벨당 초당 최대체력의 0.2%
+  S.autoGoldRateMult = (1 + p.autoCollect*0.03) * (1 + (S.autoGoldPotionLvl||0)*0.03);
 }
 function xpToNext(level){ return Math.round(20*Math.pow(1.25, level-1)); }
 function upgradeCost(key, lvl){
@@ -1032,6 +1038,7 @@ function restartGame(){
       upLvl:{atk:0, hp:0, spd:0, gold:0, regen:0},
       potions:{small:0, medium:0, large:0},
       autoGold: freshAutoGold(),
+      autoGoldPotionLvl:0,
       gameOver:false,
       lastSave:Date.now(),
       prestige: keepPrestige,
@@ -1081,7 +1088,7 @@ function setMode(mode){
   renderModeTabs();
   if(GATHER_SKILLS[mode]){ renderSkillPanel(); renderMaterialInventory(); }
   if(mode==='smithing'){ renderForge(); renderGearInventory(); }
-  if(mode==='alchemy'){ renderAlchemy(); renderCritPotions(); }
+  if(mode==='alchemy'){ renderAlchemy(); renderCritPotions(); renderAutoGoldPotion(); }
   renderSidePanel();
   save();
 }
@@ -1402,6 +1409,40 @@ function renderCritPotions(){
   });
 }
 
+/* 자동수금 촉진 물약 (벌목/낚시/채광 재료로 제작, 만들 때마다 자동수금 초당 수급량 즉시 +3%, 영구 누적) */
+const AUTOGOLD_POTION_RECIPE = [
+  {itemKey:'log_yew', name:'주목 목재', icon:'🌲', qty:100},
+  {itemKey:'fish_puffer', name:'복어', icon:'🐡', qty:100},
+  {itemKey:'ore_gold', name:'금 광석', icon:'🟡', qty:100},
+];
+const AUTOGOLD_POTION_BONUS = 0.03;
+function canCraftAutoGoldPotion(){
+  return AUTOGOLD_POTION_RECIPE.every(r => (S.inventory[r.itemKey]||0) >= r.qty);
+}
+function craftAutoGoldPotion(){
+  if(!canCraftAutoGoldPotion()) return;
+  AUTOGOLD_POTION_RECIPE.forEach(r=>{ S.inventory[r.itemKey] -= r.qty; });
+  S.autoGoldPotionLvl = (S.autoGoldPotionLvl||0) + 1;
+  deriveStats();
+  log(`💹 <b>자동수금 촉진 물약</b> 제작! 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BONUS*100)}%`);
+  renderAutoGoldPotion(); renderInventory(); renderAutoGold();
+  save();
+}
+function renderAutoGoldPotion(){
+  const list = document.getElementById('autoGoldPotionList');
+  if(!list) return;
+  const afford = canCraftAutoGoldPotion();
+  const lvl = S.autoGoldPotionLvl||0;
+  const materialLines = AUTOGOLD_POTION_RECIPE.map(r=>`${r.icon} ${r.name} ${S.inventory[r.itemKey]||0}/${r.qty}`).join(' · ');
+  list.innerHTML = `<div class="upg${afford?'':' disabled'}">
+    <div class="upg-head"><span>💹 자동수금 촉진 물약</span><span>Lv.${lvl}</span></div>
+    <div class="upg-desc">자동수금 초당 수급량 배율 ${(S.autoGoldRateMult||1).toFixed(2)}배 (제작마다 +${Math.round(AUTOGOLD_POTION_BONUS*100)}%)</div>
+    <div class="upg-desc">${materialLines}</div>
+    <div class="upg-cost">⚗️ 제작하기</div>
+  </div>`;
+  list.querySelector('.upg').onclick = craftAutoGoldPotion;
+}
+
 function sellMaterial(key, qty){
   const have = S.inventory[key]||0;
   const n = Math.min(have, qty);
@@ -1569,7 +1610,7 @@ function fmtMMSS(ms){
   return h>0 ? String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(r).padStart(2,'0')
              : String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');
 }
-function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult); }
+function autoGoldReward(tier){ return Math.round(tier.rewardBase*Math.pow(1.16, effectiveStage(S.currentZone)-1)*S.goldMult*S.autoGoldRateMult); }
 function unlockAutoGold(tierKey){
   const tier = AUTO_GOLD_TIERS.find(t=>t.key===tierKey);
   const st = S.autoGold[tierKey];
@@ -1762,7 +1803,7 @@ function drawLoop(now){
 /* ========================= 초기화 ========================= */
 function renderAll(){
   renderStats(); renderModeTabs(); renderZones(); renderShop(); renderPotionShop(); renderPotionBar();
-  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory(); renderAlchemy(); renderCritPotions();
+  renderAutoGold(); renderPrestigeShop(); renderRebirthNowCard(); renderForge(); renderInventory(); renderAlchemy(); renderCritPotions(); renderAutoGoldPotion();
   renderCombatToggle();
   document.getElementById('combatSection').hidden = S.activeMode!=='combat';
   document.getElementById('gatherSection').hidden = !GATHER_SKILLS[S.activeMode];
@@ -1785,8 +1826,9 @@ function init(){
     });
     delete S.autoGold.autoClaim;
   }
-  if(!S.prestige) S.prestige = {points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0}};
+  if(!S.prestige) S.prestige = {points:0, upLvl:{power:0, wealth:0, wisdom:0, vitality:0, headstart:0, autoCollect:0}};
   else PRESTIGE_UPG_DEF.forEach(u=>{ if(!S.prestige.upLvl[u.key]) S.prestige.upLvl[u.key]=0; });
+  if(typeof S.autoGoldPotionLvl !== 'number') S.autoGoldPotionLvl = 0;
   if(!S.currentZone || !S.zoneProgress){
     S.currentZone = 'forest';
     S.zoneProgress = freshZoneProgress();
