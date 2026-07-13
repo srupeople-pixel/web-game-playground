@@ -668,8 +668,8 @@ const PRESTIGE_UPG_DEF = [
   {key:'autoCollect', icon:'🤖', title:'수금꾼의 숙련', desc:'자동수금 초당 수급량 영구 +3%'},
 ];
 function prestigeCost(key, lvl){
-  const base = {power:3, wealth:3, wisdom:3, vitality:3, headstart:4, autoCollect:10}[key];
-  const rate = key==='headstart' ? 1.9 : key==='autoCollect' ? 2.3 : 1.8;
+  const base = {power:2, wealth:2, wisdom:2, vitality:2, headstart:3, autoCollect:5}[key];
+  const rate = key==='headstart' ? 1.55 : key==='autoCollect' ? 1.7 : 1.5;
   return Math.ceil(base*Math.pow(rate, lvl));
 }
 const AUTO_GOLD_TIERS = [
