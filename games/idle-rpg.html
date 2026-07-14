@@ -259,7 +259,7 @@
         <div class="section-label">🧪 크리티컬 물약 <span class="muted-label">(제작마다 즉시 +5%, 영구 누적)</span></div>
         <div class="shop" id="critPotionList"></div>
 
-        <div class="section-label">💹 자동수금 촉진 물약 <span class="muted-label">(마시면 30분간 +30%, 영구 아님)</span></div>
+        <div class="section-label">💹 자동수금 촉진 물약 <span class="muted-label">(마실 때마다 30분씩 중첩, 영구 아님)</span></div>
         <div class="shop" id="autoGoldPotionList"></div>
       </div>
 
@@ -1426,8 +1426,10 @@ function autoGoldPotionMult(){
 function craftAutoGoldPotion(){
   if(!canCraftAutoGoldPotion()) return;
   AUTOGOLD_POTION_RECIPE.forEach(r=>{ S.inventory[r.itemKey] -= r.qty; });
-  S.autoGoldPotionActiveUntil = Date.now() + AUTOGOLD_POTION_DURATION_MS;
-  log(`💹 <b>자동수금 촉진 물약</b>을 마셨습니다! ${AUTOGOLD_POTION_DURATION_MS/60000}분간 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`);
+  const base = Math.max(Date.now(), S.autoGoldPotionActiveUntil||0);
+  S.autoGoldPotionActiveUntil = base + AUTOGOLD_POTION_DURATION_MS;
+  const remainMin = Math.round((S.autoGoldPotionActiveUntil-Date.now())/60000);
+  log(`💹 <b>자동수금 촉진 물약</b>을 마셨습니다! ${AUTOGOLD_POTION_DURATION_MS/60000}분 추가 (남은 시간 ${remainMin}분), 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`);
   renderAutoGoldPotion(); renderInventory(); renderAutoGold();
   save();
 }
@@ -1440,7 +1442,7 @@ function renderAutoGoldPotion(){
   const materialLines = AUTOGOLD_POTION_RECIPE.map(r=>`${r.icon} ${r.name} ${S.inventory[r.itemKey]||0}/${r.qty}`).join(' · ');
   list.innerHTML = `<div class="upg${afford?'':' disabled'}">
     <div class="upg-head"><span>💹 자동수금 촉진 물약</span><span>${active ? fmtMMSS(remain)+' 남음' : '효과 없음'}</span></div>
-    <div class="upg-desc">${active ? `자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}% 적용 중 (마시면 갱신)` : `마시면 ${AUTOGOLD_POTION_DURATION_MS/60000}분간 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`}</div>
+    <div class="upg-desc">${active ? `자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}% 적용 중 (마시면 ${AUTOGOLD_POTION_DURATION_MS/60000}분 중첩 추가)` : `마시면 ${AUTOGOLD_POTION_DURATION_MS/60000}분간 자동수금 초당 수급량 +${Math.round(AUTOGOLD_POTION_BOOST*100)}%`}</div>
     <div class="upg-desc">${materialLines}</div>
     <div class="upg-cost">⚗️ 마시기</div>
   </div>`;
